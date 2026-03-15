@@ -1,0 +1,46 @@
+---
+- name: Install ufw
+  apt:
+    name: ufw
+    state: present
+    update_cache: yes
+
+- name: Check ufw installation
+  stat:
+    path: /usr/sbin/ufw
+  register: ufw_installed
+
+- name: Reset ufw config
+  ufw:
+    state: reset
+  ignore_errors: yes
+  when: ufw_installed.stat.exists
+
+- name: Deny incoming connections by default
+  ufw:
+    direction: incoming
+    policy: deny
+  when: ufw_installed.stat.exists
+
+- name: Allow outgoing connections by default
+  ufw:
+    direction: outgoing
+    policy: allow
+  when: ufw_installed.stat.exists
+
+- name: Allow all required TCP ports
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ allowed_ports }}"
+  when: 
+    - ufw_installed.stat.exists
+    - allowed_ports is defined 
+    - allowed_ports | length > 0
+
+- name: Enable ufw
+  ufw:
+    state: enabled
+    logging: 'on'
+  when: ufw_installed.stat.exists

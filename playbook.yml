@@ -1,0 +1,78 @@
+---
+- name: Import panel playbook
+  import_playbook: playbook-panel.yml
+
+- name: Import nodes playbook
+  import_playbook: playbook-nodes.yml
+
+- name: Final summary
+  hosts: panel
+  become: no
+  gather_facts: no
+  vars:
+    remnawave_base_path: "{{ hostvars[inventory_hostname]['remnawave_base_path'] | default('/opt/remnawave') }}"
+
+  tasks:
+    - name: Read secret header file
+      slurp:
+        path: "{{ remnawave_base_path }}/secret_header.txt"
+      register: secret_header_file
+      failed_when: false
+      when: remnawave_secret_header_enabled | default(true)
+
+    - name: Parse secret header value
+      set_fact:
+        display_secret_header: "{{ (secret_header_file.content | b64decode | regex_search('X-Secret-Key:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+      no_log: true
+      when:
+        - remnawave_secret_header_enabled | default(true)
+        - secret_header_file is not failed
+        - secret_header_file.content is defined
+
+    - name: Display secret header
+      debug:
+        msg:
+          - "========================================"
+          - "Secret header for hidden panel access"
+          - "========================================"
+          - "X-Secret-Key: {{ display_secret_header }}"
+          - "========================================"
+          - "Use a browser extension to automatically inject this header"
+          - "on every request to the panel, so you don't have to set it manually."
+          - "Recommended: Requestly for Chrome and simple-modify-headers for Firefox"
+          - "========================================"
+          - "Header saved in: {{ remnawave_base_path }}/secret_header.txt"
+          - "========================================"
+      when:
+        - remnawave_secret_header_enabled | default(true)
+        - display_secret_header is defined
+        - display_secret_header != ''
+
+    - name: Read admin credentials file
+      slurp:
+        path: "{{ remnawave_base_path }}/admin_credentials.txt"
+      register: admin_creds_file
+      failed_when: false
+
+    - name: Parse admin credentials
+      set_fact:
+        display_admin_login: "{{ (admin_creds_file.content | b64decode | regex_search('Login:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+        display_admin_password: "{{ (admin_creds_file.content | b64decode | regex_search('Password:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+      no_log: true
+      when:
+        - admin_creds_file is not failed
+        - admin_creds_file.content is defined
+
+    - name: Display admin credentials
+      debug:
+        msg:
+          - "========================================"
+          - "Panel URL: https://{{ remnawave_panel_domain }}"
+          - "Login: {{ display_admin_login }}"
+          - "Password: {{ display_admin_password }}"
+          - "========================================"
+          - "Credentials saved in: {{ remnawave_base_path }}/admin_credentials.txt"
+          - "========================================"
+      when:
+        - display_admin_login is defined
+        - display_admin_login != ''

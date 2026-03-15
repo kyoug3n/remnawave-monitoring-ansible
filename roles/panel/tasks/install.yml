@@ -1,0 +1,176 @@
+---
+- name: Create Remnawave base folder
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ remnawave_base_path }}"
+
+- name: Download latest docker-compose.yml
+  get_url:
+    url: https://raw.githubusercontent.com/remnawave/backend/refs/heads/main/docker-compose-prod.yml
+    dest: "{{ remnawave_base_path }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Check if .env file exists
+  stat:
+    path: "{{ remnawave_base_path }}/.env"
+  register: env_file_exists
+
+- name: Download .env.sample if .env doesn't exist
+  get_url:
+    url: https://raw.githubusercontent.com/remnawave/backend/refs/heads/main/.env.sample
+    dest: "{{ remnawave_base_path }}/.env"
+    mode: '0644'
+  when: not env_file_exists.stat.exists
+
+- name: Read current values from .env
+  shell: |
+    if [ -f "{{ remnawave_base_path }}/.env" ]; then
+      echo "POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' {{ remnawave_base_path }}/.env | cut -d'=' -f2 || echo '')"
+      echo "JWT_AUTH_SECRET=$(grep '^JWT_AUTH_SECRET=' {{ remnawave_base_path }}/.env | cut -d'=' -f2 || echo '')"
+      echo "JWT_API_TOKENS_SECRET=$(grep '^JWT_API_TOKENS_SECRET=' {{ remnawave_base_path }}/.env | cut -d'=' -f2 || echo '')"
+      echo "METRICS_PASS=$(grep '^METRICS_PASS=' {{ remnawave_base_path }}/.env | cut -d'=' -f2 || echo '')"
+      echo "WEBHOOK_SECRET_HEADER=$(grep '^WEBHOOK_SECRET_HEADER=' {{ remnawave_base_path }}/.env | cut -d'=' -f2 || echo '')"
+    fi
+  register: current_env_values
+  changed_when: false
+  failed_when: false
+  when: env_file_exists.stat.exists
+
+- name: Parse current values from .env
+  set_fact:
+    current_postgres_password: "{{ current_env_values.stdout_lines | select('match', '^POSTGRES_PASSWORD=') | first | regex_replace('^POSTGRES_PASSWORD=', '') | default('') }}"
+    current_jwt_auth: "{{ current_env_values.stdout_lines | select('match', '^JWT_AUTH_SECRET=') | first | regex_replace('^JWT_AUTH_SECRET=', '') | default('') }}"
+    current_jwt_api: "{{ current_env_values.stdout_lines | select('match', '^JWT_API_TOKENS_SECRET=') | first | regex_replace('^JWT_API_TOKENS_SECRET=', '') | default('') }}"
+    current_metrics: "{{ current_env_values.stdout_lines | select('match', '^METRICS_PASS=') | first | regex_replace('^METRICS_PASS=', '') | default('') }}"
+    current_webhook: "{{ current_env_values.stdout_lines | select('match', '^WEBHOOK_SECRET_HEADER=') | first | regex_replace('^WEBHOOK_SECRET_HEADER=', '') | default('') }}"
+  when: env_file_exists.stat.exists and current_env_values is defined
+
+- name: Generate secrets for .env
+  block:
+    - name: Generate JWT_AUTH_SECRET
+      shell: openssl rand -hex 64
+      register: jwt_auth_secret
+      changed_when: false
+      no_log: true
+      when: not env_file_exists.stat.exists or current_jwt_auth == ""
+
+    - name: Generate JWT_API_TOKENS_SECRET
+      shell: openssl rand -hex 64
+      register: jwt_api_tokens_secret
+      changed_when: false
+      no_log: true
+      when: not env_file_exists.stat.exists or current_jwt_api == ""
+
+    - name: Generate METRICS_PASS
+      shell: openssl rand -hex 64
+      register: metrics_pass
+      changed_when: false
+      no_log: true
+      when: not env_file_exists.stat.exists or current_metrics == ""
+
+    - name: Generate WEBHOOK_SECRET_HEADER
+      shell: openssl rand -hex 64
+      register: webhook_secret
+      changed_when: false
+      no_log: true
+      when: not env_file_exists.stat.exists or current_webhook == ""
+
+    - name: Generate POSTGRES_PASSWORD
+      shell: openssl rand -hex 24
+      register: postgres_password_generated
+      changed_when: false
+      no_log: true
+      when: not env_file_exists.stat.exists or current_postgres_password == ""
+
+- name: Set all secrets
+  set_fact:
+    jwt_auth_secret: "{{ current_jwt_auth if (env_file_exists.stat.exists and current_jwt_auth != '') else jwt_auth_secret.stdout }}"
+    jwt_api_tokens_secret: "{{ current_jwt_api if (env_file_exists.stat.exists and current_jwt_api != '') else jwt_api_tokens_secret.stdout }}"
+    metrics_pass: "{{ current_metrics if (env_file_exists.stat.exists and current_metrics != '') else metrics_pass.stdout }}"
+    webhook_secret: "{{ current_webhook if (env_file_exists.stat.exists and current_webhook != '') else webhook_secret.stdout }}"
+    postgres_password: "{{ current_postgres_password if (env_file_exists.stat.exists and current_postgres_password != '') else postgres_password_generated.stdout }}"
+  no_log: true
+
+- name: Set nginx secret header
+  block:
+    - name: Check if secret header file exists
+      stat:
+        path: "{{ remnawave_base_path }}/secret_header.txt"
+      register: secret_header_file_exists
+
+    - name: Read current header
+      shell: "grep '^X-Secret-Key:' {{ remnawave_base_path }}/secret_header.txt | sed 's/^X-Secret-Key: //'"
+      register: current_secret_header
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: secret_header_file_exists.stat.exists
+
+    - name: Generate new header
+      shell: openssl rand -hex 16
+      register: secret_header_generated
+      changed_when: false
+      no_log: true
+      when: remnawave_secret_header == "" and (not secret_header_file_exists.stat.exists or current_secret_header.stdout == "" or current_secret_header.stdout == "X-Secret-Key:")
+
+    - name: Set header
+      set_fact:
+        remnawave_secret_header: "{{ current_secret_header.stdout if (secret_header_file_exists.stat.exists and current_secret_header.stdout != '' and current_secret_header.stdout != 'X-Secret-Key:') else (secret_header_generated.stdout if (secret_header_generated is defined) else remnawave_secret_header) }}"
+      no_log: true
+  when: remnawave_secret_header_enabled
+
+- name: Add all secrets to .env
+  lineinfile:
+    path: "{{ remnawave_base_path }}/.env"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^JWT_AUTH_SECRET=', line: "JWT_AUTH_SECRET={{ jwt_auth_secret }}" }
+    - { regexp: '^JWT_API_TOKENS_SECRET=', line: "JWT_API_TOKENS_SECRET={{ jwt_api_tokens_secret }}" }
+    - { regexp: '^METRICS_PASS=', line: "METRICS_PASS={{ metrics_pass }}" }
+    - { regexp: '^WEBHOOK_SECRET_HEADER=', line: "WEBHOOK_SECRET_HEADER={{ webhook_secret }}" }
+    - { regexp: '^POSTGRES_PASSWORD=', line: "POSTGRES_PASSWORD={{ postgres_password }}" }
+    - { regexp: '^POSTGRES_USER=', line: "POSTGRES_USER=postgres" }
+    - { regexp: '^POSTGRES_DB=', line: "POSTGRES_DB=remnawave" }
+    - { regexp: '^DATABASE_URL=', line: 'DATABASE_URL="postgresql://postgres:{{ postgres_password }}@remnawave-db:5432/remnawave?schema=public"' }
+    - { regexp: '^FRONT_END_DOMAIN=', line: "FRONT_END_DOMAIN={{ remnawave_panel_domain }}" }
+    - { regexp: '^SUB_PUBLIC_DOMAIN=', line: "SUB_PUBLIC_DOMAIN={{ remnawave_panel_domain }}/api/sub" }
+  no_log: true
+  register: env_config_changed
+
+- name: Restart Remnawave
+  shell:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ remnawave_base_path }}"
+  register: remnawave_start
+
+- name: Wait for database container
+  shell: "docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' remnawave-db"
+  register: db_health
+  until: db_health.stdout == "healthy"
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Wait for Remnawave container
+  shell: "docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' remnawave"
+  register: remnawave_health
+  until: remnawave_health.stdout == "healthy"
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Wait for API response
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ remnawave_backend_port }}"
+    delay: 2
+    timeout: 30
+
+- name: Display Remnawave installation message
+  debug:
+    msg:
+      - "Remnawave installed. Continuing..."

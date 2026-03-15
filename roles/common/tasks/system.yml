@@ -1,0 +1,81 @@
+---
+- name: Install locales package
+  apt:
+    name: locales
+    state: present
+
+- name: Configure en_US.UTF-8 locale
+  locale_gen:
+    name: en_US.UTF-8
+    state: present
+
+- name: Set default locale
+  copy:
+    dest: /etc/default/locale
+    content: |
+      LANG=en_US.UTF-8
+      LC_ALL=en_US.UTF-8
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install fail2ban
+  apt:
+    name: fail2ban
+    state: present
+    update_cache: yes
+  when: fail2ban_enabled
+
+- name: Check fail2ban installation
+  stat:
+    path: /usr/bin/fail2ban-client
+  register: fail2ban_installed
+
+- name: Configure fail2ban for SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = {{ fail2ban_bantime }}
+      maxretry = {{ fail2ban_maxretry }}
+      
+      [sshd]
+      enabled = true
+      port = {{ ansible_port | default(22) }}
+    owner: root
+    group: root
+    mode: '0644'
+  when: 
+    - fail2ban_enabled
+    - fail2ban_installed.stat.exists
+  notify: restart fail2ban
+
+- name: Ensure fail2ban is running
+  systemd:
+    name: fail2ban
+    enabled: yes
+    state: started
+  when: 
+    - fail2ban_enabled
+    - fail2ban_installed.stat.exists
+
+- name: Install unattended-upgrades
+  apt:
+    name: unattended-upgrades
+    state: present
+  when: auto_updates_enabled
+
+- name: Configure unattended-upgrades
+  copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+      };
+      Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+      Unattended-Upgrade::MinimalSteps "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+    owner: root
+    group: root
+    mode: '0644'
+  when: auto_updates_enabled

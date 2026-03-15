@@ -1,0 +1,60 @@
+---
+- name: Configure Remnawave nodes
+  hosts: nodes
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    deployed_roles:
+      - common
+      - node
+  
+  pre_tasks:
+    - name: Display node information
+      debug:
+        msg:
+          - "========================================"
+          - "Configuring node: {{ inventory_hostname }}"
+          - "========================================"
+          - "Name: {{ node_name }}"
+          - "IP: {{ ansible_host }}"
+          - "Domain: {{ node_domain }}"
+          - "Port: {{ node_port }}"
+          - "========================================"
+    
+    - name: Check node connection
+      ping:
+      register: ping_result
+    
+    - name: Check OS family
+      fail:
+        msg: "This playbook only supports Debian-based distributions (Debian, Ubuntu). Detected: {{ ansible_facts['os_family'] }}"
+      when: ansible_facts['os_family'] != "Debian"
+    
+    - name: Display detected OS
+      debug:
+        msg: "Detected OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+  
+  roles:
+    - role: common
+      vars:
+        tls_domain: "{{ node_domain }}"
+        tls_cert_path: "{{ node_nginx_path }}"
+      tags: ['common']
+    
+    - role: node
+      tags: ['node']
+  
+  post_tasks:
+    - name: Node deployment report
+      debug:
+        msg:
+          - "========================================"
+          - "Node successfully deployed"
+          - "========================================"
+          - "Name: {{ node_name }}"
+          - "IP: {{ ansible_host }}"
+          - "Domain: {{ node_domain }}"
+          - "Port: {{ node_port }}"
+          - "Applied roles: {{ deployed_roles | join(', ') }}"
+          - "========================================"

@@ -1,0 +1,33 @@
+---
+- name: Install acme.sh dependencies
+  apt:
+    name:
+      - cron
+      - socat
+      - curl
+      - dnsutils
+    state: present
+    update_cache: yes
+
+- name: Check if acme.sh is installed
+  stat:
+    path: /root/.acme.sh/acme.sh
+  register: acme_installed
+  when: tls_domain is defined
+
+- name: Install acme.sh
+  shell: |
+    curl https://get.acme.sh | sh -s email="admin@{{ tls_domain }}"
+  when: 
+    - tls_domain is defined
+    - not acme_installed.stat.exists
+  register: acme_installation
+  environment:
+    HOME: /root
+
+- name: Set Let's Encrypt as default CA
+  shell: |
+    /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+  register: ca_change
+  ignore_errors: yes
+  when: tls_domain is defined

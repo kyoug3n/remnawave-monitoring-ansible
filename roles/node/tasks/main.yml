@@ -1,0 +1,32 @@
+---
+- name: Include validation tasks
+  include_tasks: validate.yml
+  tags: ['validate']
+
+- name: Include firewall configuration tasks
+  include_tasks: firewall.yml
+  tags: ['firewall']
+
+- name: Include Nginx installation tasks
+  include_tasks: nginx.yml
+  tags: ['nginx']
+
+- name: Include API authentication tasks
+  include_tasks: api_auth.yml
+  tags: ['api']
+
+- name: Include config profile management tasks
+  include_tasks: config_profile.yml
+  tags: ['api']
+
+- name: Include node profile creation tasks
+  include_tasks: node_profile.yml
+  tags: ['api']
+
+- name: Include squad configuration tasks
+  include_tasks: squad.yml
+  tags: ['api']
+
+- name: Include container deployment tasks
+  include_tasks: deploy_container.yml
+  tags: ['deploy']

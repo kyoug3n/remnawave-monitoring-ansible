@@ -1,0 +1,20 @@
+---
+- name: Extract existing inbound UUIDs from squad
+  set_fact:
+    existing_inbound_uuids: "{{ squad_item.inbounds | default([]) | map(attribute='uuid') | list }}"
+
+- name: Set API request parameters for updating squad
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/internal-squads"
+    api_method: "PATCH"
+    api_body:
+      uuid: "{{ squad_item.uuid }}"
+      inbounds: "{{ (existing_inbound_uuids + [inbound_uuid]) | unique }}"
+
+- name: Update squad via API
+  include_tasks: api_request.yml
+
+- name: Verify squad update succeeded
+  fail:
+    msg: "Failed to update squad {{ squad_item.uuid }}: {{ api_response.json }}"
+  when: api_response.status not in [200, 201]

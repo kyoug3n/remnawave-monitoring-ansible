@@ -1,0 +1,183 @@
+---
+- name: Check for superadmin creds
+  stat:
+    path: /opt/remnawave/admin_credentials.txt
+  delegate_to: "{{ panel_ip }}"
+  register: admin_creds_file
+
+- name: Fail if superadmin creds file does not exist
+  fail:
+    msg: "Admin credentials file /opt/remnawave/admin_credentials.txt does not exist on panel server {{ panel_ip }}"
+  when: not admin_creds_file.stat.exists
+
+- name: Check for secret header
+  stat:
+    path: /opt/remnawave/secret_header.txt
+  delegate_to: "{{ panel_ip }}"
+  register: secret_header_file
+
+- name: Get panel secret header enabled status
+  set_fact:
+    panel_secret_header_enabled: "{{ hostvars[groups['panel'][0]]['remnawave_secret_header_enabled'] | default(true) }}"
+
+- name: Fail if secret header file does not exist when header auth is enabled
+  fail:
+    msg: "Secret header file /opt/remnawave/secret_header.txt does not exist on panel server {{ panel_ip }}, but header authentication is enabled"
+  when: 
+    - panel_secret_header_enabled | bool
+    - not secret_header_file.stat.exists
+
+- name: Read superadmin creds from panel server
+  slurp:
+    path: /opt/remnawave/admin_credentials.txt
+  delegate_to: "{{ panel_ip }}"
+  register: admin_creds_content
+
+- name: Parse superadmin creds
+  set_fact:
+    admin_credentials_raw: "{{ admin_creds_content.content | b64decode }}"
+  no_log: true
+
+- name: Extract superadmin username
+  set_fact:
+    superadmin_username: "{{ (admin_credentials_raw | regex_search('Login:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+  no_log: true
+
+- name: Extract superadmin password
+  set_fact:
+    superadmin_password: "{{ (admin_credentials_raw | regex_search('Password:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+  no_log: true
+
+- name: Fail if credentials not found
+  fail:
+    msg: "Failed to parse superadmin credentials from file."
+  when: superadmin_username == '' or superadmin_password == ''
+
+- name: Read secret header from panel server
+  slurp:
+    path: /opt/remnawave/secret_header.txt
+  delegate_to: "{{ panel_ip }}"
+  register: secret_header_content
+  when: 
+    - panel_secret_header_enabled | bool
+    - secret_header_file.stat.exists
+
+- name: Parse secret header from file
+  set_fact:
+    secret_header_raw: "{{ secret_header_content.content | b64decode }}"
+  no_log: true
+  when: 
+    - panel_secret_header_enabled | bool
+    - secret_header_file.stat.exists
+
+- name: Extract secret header value
+  set_fact:
+    panel_secret_header: "{{ (secret_header_raw | regex_search('X-Secret-Key:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
+  no_log: true
+  when: 
+    - panel_secret_header_enabled | bool
+    - secret_header_file.stat.exists
+
+- name: Set empty secret header when disabled
+  set_fact:
+    panel_secret_header: ""
+  when: not (panel_secret_header_enabled | bool)
+
+- name: Build base API headers (reused across all API calls)
+  set_fact:
+    base_api_headers:
+      Content-Type: "application/json"
+      X-Forwarded-For: "{{ remnawave_panel_domain | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: "https"
+      X-Remnawave-Client-Type: "browser"
+
+- name: Build authentication headers
+  set_fact:
+    auth_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer '}) }}"
+
+- name: Add secret header (if used) to authentication headers
+  set_fact:
+    auth_headers: "{{ auth_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  when: panel_secret_header_enabled | bool
+
+- name: Authenticate with Remnawave API
+  block:
+    - name: Send authentication request
+      uri:
+        url: "https://{{ remnawave_panel_domain }}/api/auth/login"
+        method: POST
+        headers: "{{ auth_headers }}"
+        body_format: json
+        body:
+          username: "{{ superadmin_username }}"
+          password: "{{ superadmin_password }}"
+        validate_certs: yes
+        status_code: [200, 201]
+        return_content: yes
+      register: auth_response
+      no_log: true
+
+  rescue:
+    - name: Handle authentication error
+      set_fact:
+        api_error_response: "{{ auth_response }}"
+
+    - name: Include API error handler
+      include_tasks: api_error_handler.yml
+
+- name: Extract access token from response (try .response.accessToken first)
+  set_fact:
+    access_token: "{{ auth_response.json.response.accessToken | default('') }}"
+  no_log: true
+  when: auth_response.json.response is defined and auth_response.json.response.accessToken is defined
+
+- name: Extract access token from response (fallback to .accessToken)
+  set_fact:
+    access_token: "{{ auth_response.json.accessToken | default('') }}"
+  no_log: true
+  when: access_token is not defined or access_token == ''
+
+- name: Fail if access token is empty
+  fail:
+    msg: "Failed to extract access token from authentication response."
+  when: access_token is not defined or access_token == ''
+
+- name: Build key generation headers (with access token)
+  set_fact:
+    keygen_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer ' + access_token}) }}"
+  no_log: true
+
+- name: Add secret header to key generation headers
+  set_fact:
+    keygen_headers: "{{ keygen_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  no_log: true
+  when: panel_secret_header_enabled | bool
+
+- name: Generate secret key for node
+  block:
+    - name: Send key generation request
+      uri:
+        url: "https://{{ remnawave_panel_domain }}/api/keygen"
+        method: GET
+        headers: "{{ keygen_headers }}"
+        validate_certs: yes
+        status_code: [200, 201]
+        return_content: yes
+      register: keygen_response
+
+  rescue:
+    - name: Handle key generation error
+      set_fact:
+        api_error_response: "{{ keygen_response }}"
+
+    - name: Include API error handler
+      include_tasks: api_error_handler.yml
+
+- name: Extract pubKey from response
+  set_fact:
+    node_pub_key: "{{ keygen_response.json.response.pubKey | default('') }}"
+
+- name: Fail if pubKey not extracted
+  fail:
+    msg: "Failed to extract pubKey from key generation response."
+  when: node_pub_key is not defined or node_pub_key == ''

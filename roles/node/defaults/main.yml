@@ -1,0 +1,13 @@
+---
+# ↓ do not change ↓
+remnawave_base_path: /opt/remnawave
+node_nginx_path: /opt/remnanode/nginx
+nginx_socket_path: /dev/shm/remna-nginx.sock
+acmesh_port: 8443
+reserved_ports:
+  - "{{ ansible_port | default(22) }}"
+  - 80
+  - 443
+  - "{{ acmesh_port }}"
+  - 61000  # used by remnanode
+# ↑ do not change ↑

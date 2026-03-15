@@ -1,0 +1,28 @@
+---
+- name: Set API request parameters for getting squads
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/internal-squads"
+    api_method: "GET"
+
+- name: Get list of squads from Remnawave API
+  include_tasks: api_request.yml
+
+- name: Store squads response
+  set_fact:
+    squads_response: "{{ api_response }}"
+
+- name: Extract squad UUIDs from response
+  set_fact:
+    squad_uuids: "{{ squads_response.json.response.internalSquads | default([]) | map(attribute='uuid') | list }}"
+
+- name: Fail if no squads found
+  fail:
+    msg: "No squads found in Remnawave panel. Response: {{ squads_response.json }}"
+  when: squad_uuids | length == 0
+
+- name: Update each squad with new inbound
+  include_tasks: squad_update_loop.yml
+  loop: "{{ squads_response.json.response.internalSquads | default([]) }}"
+  loop_control:
+    loop_var: squad_item
+    label: "{{ squad_item.uuid }}"

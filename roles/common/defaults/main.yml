@@ -1,0 +1,12 @@
+---
+# recommended settings
+ssh_permit_root_login: "prohibit-password"
+ssh_password_authentication: "no"
+ssh_max_auth_tries: 3
+ssh_login_grace_time: 30
+
+fail2ban_enabled: yes
+fail2ban_maxretry: 3
+fail2ban_bantime: 86400
+
+auto_updates_enabled: yes

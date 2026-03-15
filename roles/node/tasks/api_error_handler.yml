@@ -1,0 +1,39 @@
+---
+- name: Handle API error
+  block:
+    - name: Parse error response
+      set_fact:
+        api_error_details:
+          status_code: "{{ api_error_response.status | default('unknown') }}"
+          url: "{{ api_error_response.url | default('unknown') }}"
+          method: "{{ api_error_response.method | default('unknown') }}"
+          message: "{{ api_error_response.json.message | default(api_error_response.msg | default('Error message unavailable')) }}"
+          response_body: "{{ api_error_response.json | default({}) }}"
+
+    - name: Log detailed API error
+      debug:
+        msg:
+          - "API request error:"
+          - "  URL: {{ api_error_details.url }}"
+          - "  Method: {{ api_error_details.method }}"
+          - "  Status code: {{ api_error_details.status_code }}"
+          - "  Error message: {{ api_error_details.message }}"
+          - "  Response body: {{ api_error_details.response_body }}"
+
+    - name: Check if error is auth-related
+      set_fact:
+        is_auth_error: "{{ api_error_details.status_code | int == 401 or api_error_details.status_code | int == 403 }}"
+
+    - name: Fail with detailed message
+      fail:
+        msg: |
+          API request failed with error {{ api_error_details.status_code }}
+          URL: {{ api_error_details.url }}
+          Method: {{ api_error_details.method }}
+          Error: {{ api_error_details.message }}
+          {% if is_auth_error %}
+          This appears to be an authentication error. Please check:
+          - Access token validity
+          - Secret header correctness
+          {% endif %}
+          Full response: {{ api_error_details.response_body }}

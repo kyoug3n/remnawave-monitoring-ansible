@@ -1,0 +1,69 @@
+{
+  "log": {
+    "error": "error.log",
+    "access": "access.log",
+    "loglevel": "warning"
+  },
+  "dns": {
+    "queryStrategy": "UseIPv4",
+    "servers": [
+      "https://cloudflare-dns.com/dns-query"
+    ]
+  },
+  "inbounds": [
+    {
+      "tag": "{{ inbound_tag }}",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "target": "/dev/shm/remna-nginx.sock",
+          "xver": 1,
+          "serverNames": [
+            "{{ node_domain }}"
+          ],
+          "privateKey": "{{ x25519_private_key }}",
+          "shortIds": [
+            "{{ reality_short_id }}"
+          ],
+          "fingerprint": "chrome",
+          "password": "{{ x25519_public_key }}",
+          "spiderX": "/"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "DIRECT",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "BLOCK",
+      "protocol": "blackhole"
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "BLOCK"
+      },
+      {
+        "protocol": [
+          "bittorrent"
+        ],
+        "outboundTag": "BLOCK"
+      }
+    ]
+  }
+}

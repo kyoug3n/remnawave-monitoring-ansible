@@ -1,0 +1,32 @@
+---
+- name: Validation of user input
+  include_tasks: validate.yml
+  tags: ['validate']
+
+- name: Docker installation
+  include_tasks: docker.yml
+  tags: ['docker']
+
+- name: SSH Hardening
+  include_tasks: ssh.yml
+  tags: ['ssh']
+
+- name: UFW configuration
+  include_tasks: ufw.yml
+  tags: ['ufw']
+
+- name: General system hardening
+  include_tasks: system.yml
+  tags: ['system']
+
+- name: Set fq & enable bbr
+  include_tasks: bbr.yml
+  tags: ['bbr']
+
+- name: TLS dependencies installation
+  include_tasks: tls_deps.yml
+  tags: ['tls']
+
+- name: TLS certificate issuance
+  include_tasks: tls_cert.yml
+  tags: ['tls']

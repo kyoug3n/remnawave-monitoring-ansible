@@ -1,0 +1,17 @@
+services:
+  remnanode:
+    image: remnawave/node:latest
+    container_name: remnanode
+    network_mode: host
+    restart: always
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - /dev/shm:/dev/shm
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    environment:
+      NODE_PORT: "{{ node_port }}"
+      SECRET_KEY: "{{ node_pub_key }}"

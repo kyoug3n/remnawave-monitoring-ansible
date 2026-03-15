@@ -1,0 +1,90 @@
+---
+- name: Configure Remnawave server
+  hosts: panel
+  become: yes
+  gather_facts: no
+  
+  vars:
+    deployed_roles:
+      - common
+      - panel
+  
+  pre_tasks:
+    - name: Check server connection
+      ping:
+      register: ping_result
+    
+    - name: Get actual server IP address
+      shell: hostname -I | awk '{print $1}'
+      register: server_ip_actual
+      changed_when: false
+    
+    - name: Display connection information
+      debug:
+        msg: "Connected to {{ inventory_hostname }} (IP: {{ server_ip_actual.stdout }})"
+    
+    - name: Gather OS facts
+      setup:
+        gather_subset:
+          - '!all'
+          - '!min'
+          - distribution
+    
+    - name: Check OS family
+      fail:
+        msg: "This playbook only supports Debian-based distributions (Debian, Ubuntu). Detected: {{ ansible_facts['os_family'] }}"
+      when: ansible_facts['os_family'] != "Debian"
+    
+    - name: Display detected OS
+      debug:
+        msg: "Detected OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+
+  roles:
+    - role: common
+      vars:
+        tls_domain: "{{ remnawave_panel_domain }}"
+        tls_cert_path: "{{ remnawave_nginx_path }}"
+      tags: ['common']
+    
+    - role: panel
+      tags: ['panel']
+
+  post_tasks:
+    - name: Deployment summary report
+      debug:
+        msg:
+          - "========================================"
+          - "Panel deployed"
+          - "========================================"
+          - "Server: {{ inventory_hostname }} ({{ server_ip_actual.stdout }})"
+          - "Panel domain: {{ remnawave_panel_domain }}"
+          - "Applied roles: {{ deployed_roles | join(', ') }}"
+          - "========================================"
+
+    - name: Display secret header
+      debug:
+        msg:
+          - "========================================"
+          - "Secret header for hidden panel access"
+          - "========================================"
+          - "X-Secret-Key: {{ remnawave_secret_header }}"
+          - "========================================"
+          - "Use a browser extension to automatically inject this header"
+          - "on every request to the panel, so you don't have to set it manually."
+          - "Recommended: Requestly for Chrome and simple-modify-headers for Firefox"
+          - "========================================"
+          - "Header saved in: {{ remnawave_base_path }}/secret_header.txt"
+          - "========================================"
+      when: remnawave_secret_header_enabled | default(false)
+
+    - name: Display admin credentials
+      debug:
+        msg:
+          - "========================================"
+          - "Panel URL: https://{{ remnawave_panel_domain }}"
+          - "Login: {{ panel_admin_username }}"
+          - "Password: {{ panel_admin_password }}"
+          - "========================================"
+          - "Credentials saved in: {{ remnawave_base_path }}/admin_credentials.txt"
+          - "========================================"
+      when: panel_registration_successful | default(false)

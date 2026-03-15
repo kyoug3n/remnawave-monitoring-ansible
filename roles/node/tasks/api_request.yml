@@ -1,0 +1,21 @@
+---
+- name: Build API request headers
+  set_fact:
+    api_request_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer ' + access_token}) }}"
+
+- name: Add secret header to API request
+  set_fact:
+    api_request_headers: "{{ api_request_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  when: panel_secret_header_enabled | bool
+
+- name: Execute API request
+  uri:
+    url: "{{ api_url }}"
+    method: "{{ api_method }}"
+    headers: "{{ api_request_headers }}"
+    body: "{{ api_body | default(omit) }}"
+    body_format: "{{ 'json' if api_body is defined else omit }}"
+    validate_certs: yes
+    status_code: "{{ api_status_codes | default([200, 201]) }}"
+    return_content: yes
+  register: api_response

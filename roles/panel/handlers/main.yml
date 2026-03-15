@@ -1,0 +1,11 @@
+- name: restart remnawave
+  command:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ remnawave_base_path }}"
+  listen: restart remnawave
+
+- name: restart nginx
+  command:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ remnawave_nginx_path }}"
+  listen: restart nginx

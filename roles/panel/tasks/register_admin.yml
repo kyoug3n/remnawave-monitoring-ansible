@@ -1,0 +1,145 @@
+---
+- name: Generate superadmin username
+  shell: tr -dc 'a-zA-Z' < /dev/urandom | fold -w 8 | head -n 1
+  register: superadmin_username
+  changed_when: false
+
+- name: Generate superadmin password
+  shell: |
+    base=$(openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | head -c 29)
+    upper=$(openssl rand -base64 10 | tr -dc 'A-Z' | head -c 1)
+    lower=$(openssl rand -base64 10 | tr -dc 'a-z' | head -c 1)
+    digit=$(openssl rand -base64 10 | tr -dc '0-9' | head -c 1)
+    echo "${base}${upper}${lower}${digit}" | fold -w1 | shuf | tr -d '\n'; echo
+  register: superadmin_password
+  changed_when: false
+
+- name: Wait for Remnawave API to be ready
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/auth/status"
+    method: GET
+    status_code: 200
+    validate_certs: no
+    headers: "{{ {'X-Secret-Key': remnawave_secret_header} if remnawave_secret_header_enabled else {} }}"
+  register: api_status
+  until: api_status.status == 200
+  retries: 10
+  delay: 5
+
+- name: Check authentication status
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/auth/status"
+    method: GET
+    return_content: yes
+    validate_certs: no
+    headers: "{{ {'X-Secret-Key': remnawave_secret_header} if remnawave_secret_header_enabled else {} }}"
+  register: auth_status
+
+- name: Determine authentication method
+  set_fact:
+    oauth_enabled: "{{ (auth_status.json.response.authentication.oauth2.providers.github | default(false)) or 
+                       (auth_status.json.response.authentication.oauth2.providers.yandex | default(false)) or 
+                       (auth_status.json.response.authentication.oauth2.providers.pocketid | default(false)) or 
+                       (auth_status.json.response.authentication.tgAuth.enabled | default(false)) }}"
+
+- name: Register superadmin
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/auth/register"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ superadmin_username.stdout }}"
+      password: "{{ superadmin_password.stdout }}"
+    headers:
+      Content-Type: "application/json"
+      X-Remnawave-Client-Type: "browser"
+      X-Secret-Key: "{{ remnawave_secret_header }}"
+    status_code: [200, 201, 403]
+    return_content: yes
+    validate_certs: no
+  register: register_response_with_header
+  when: not oauth_enabled and remnawave_secret_header_enabled
+  ignore_errors: yes
+
+- name: Register superadmin (without header protection)
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/auth/register"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ superadmin_username.stdout }}"
+      password: "{{ superadmin_password.stdout }}"
+    headers:
+      Content-Type: "application/json"
+      X-Remnawave-Client-Type: "browser"
+    status_code: [200, 201, 403]
+    return_content: yes
+    validate_certs: no
+  register: register_response_no_header
+  when: not oauth_enabled and not remnawave_secret_header_enabled
+  ignore_errors: yes
+
+- name: Combine registration results
+  set_fact:
+    register_response: "{{ register_response_with_header if remnawave_secret_header_enabled else register_response_no_header }}"
+  when: not oauth_enabled
+
+- name: Check registration success
+  set_fact:
+    registration_successful: "{{ register_response.status in [200, 201] }}"
+    registration_forbidden: "{{ register_response.status == 403 }}"
+  when: not oauth_enabled and register_response is defined and not (register_response.skipped | default(false))
+
+- name: Save admin credentials
+  copy:
+    content: |
+      ========================================
+      Remnawave superadmin credentials
+      ========================================
+      Panel URL: https://{{ remnawave_panel_domain }}
+      Login: {{ superadmin_username.stdout }}
+      Password: {{ superadmin_password.stdout }}
+      ========================================
+    dest: "{{ remnawave_base_path }}/admin_credentials.txt"
+    mode: '0600'
+  when: registration_successful | default(false)
+
+- name: Store admin credentials for summary
+  set_fact:
+    panel_admin_username: "{{ superadmin_username.stdout }}"
+    panel_admin_password: "{{ superadmin_password.stdout }}"
+    panel_registration_successful: "{{ registration_successful | default(false) }}"
+  no_log: true
+  when: registration_successful | default(false)
+
+- name: Warning about existing user
+  debug:
+    msg:
+      - "========================================"
+      - "Registration unavailable"
+      - "========================================"
+      - "Superadmin already exists or registration is closed."
+      - "If you forgot the password, use Remnawave's CLI to reset it:"
+      - "cd {{ remnawave_base_path }} && docker exec -it remnawave remnawave"
+      - "========================================"
+  when: registration_forbidden | default(false)
+
+- name: Warning about OAuth
+  debug:
+    msg:
+      - "========================================"
+      - "OAuth authentication detected, automatic registration skipped."
+      - "========================================"
+  when: oauth_enabled
+
+- name: Warning about registration error
+  debug:
+    msg:
+      - "========================================"
+      - "Failed to create superadmin account"
+      - "========================================"
+      - "User may already exist."
+      - "Create a superadmin account manually via CLI:"
+      - "cd {{ remnawave_base_path }} && docker exec -it remnawave remnawave"
+      - "========================================"
+  when: register_response is failed and not oauth_enabled

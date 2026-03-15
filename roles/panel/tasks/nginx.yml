@@ -1,0 +1,64 @@
+---
+- name: Create Nginx directory
+  file:
+    path: "{{ remnawave_nginx_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy docker-compose.yml for Nginx
+  template:
+    src: nginx-docker-compose.yml.j2
+    dest: "{{ remnawave_nginx_path }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Copy nginx.conf
+  template:
+    src: nginx.conf.j2
+    dest: "{{ remnawave_nginx_path }}/nginx.conf"
+    mode: '0644'
+  register: nginx_config_changed
+
+- name: Save secret header for panel access
+  copy:
+    content: |
+      ========================================
+      Secret header for hidden panel access
+      ========================================
+      X-Secret-Key: {{ remnawave_secret_header }}
+      ========================================
+      Use a browser extension to automatically inject this header
+      on every request to the panel, so you don't have to set it manually.
+      Recommended: Requestly for Chrome and simple-modify-headers for Firefox
+      ========================================
+      Header saved in: {{ remnawave_base_path }}/secret_header.txt
+      ========================================
+    dest: "{{ remnawave_base_path }}/secret_header.txt"
+    mode: '0600'
+  when: remnawave_secret_header_enabled
+
+- name: Remove nexus.html if incorrectly created as a directory
+  file:
+    path: "{{ remnawave_nginx_path }}/nexus.html"
+    state: absent
+  when: remnawave_secret_header_enabled
+
+- name: Create nexus.html for panel protection
+  template:
+    src: nexus.html.j2
+    dest: "{{ remnawave_nginx_path }}/nexus.html"
+    mode: '0644'
+  when: remnawave_secret_header_enabled
+
+- name: Restart Nginx
+  shell:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ remnawave_nginx_path }}"
+  register: nginx_start
+
+- name: Wait for Nginx to be ready
+  shell: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' remnawave-nginx"
+  register: nginx_status
+  until: nginx_status.stdout == "running"
+  retries: 20
+  delay: 2
+  changed_when: false

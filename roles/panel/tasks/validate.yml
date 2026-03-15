@@ -1,0 +1,103 @@
+---
+- name: Validate required variables are defined
+  assert:
+    that:
+      - remnawave_panel_domain is defined
+      - remnawave_panel_domain | length > 0
+      - remnawave_base_path is defined
+      - remnawave_base_path | length > 0
+      - remnawave_nginx_path is defined
+      - remnawave_nginx_path | length > 0
+    fail_msg: |
+      Required variables for panel are missing.
+      Make sure all of the following variables are defined:
+      - remnawave_panel_domain: Panel domain name (e.g., 'panel.example.com')
+      - remnawave_base_path: Remnawave installation path (default '/opt/remnawave')
+      - remnawave_nginx_path: Nginx path (default '/opt/remnawave/nginx')
+    quiet: true
+
+- name: Validate panel domain name format
+  assert:
+    that:
+      - remnawave_panel_domain is match('^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$')
+    fail_msg: |
+      Invalid domain name format: {{ remnawave_panel_domain }}
+      Domain name must be in format: example.com or subdomain.example.com
+    quiet: true
+
+- name: Validate ports are defined and are numbers
+  assert:
+    that:
+      - remnawave_nginx_https_port is defined
+      - remnawave_nginx_https_port is number
+      - remnawave_backend_port is defined
+      - remnawave_backend_port is number
+      - acmesh_port is defined
+      - acmesh_port is number
+    fail_msg: |
+      Panel ports are not defined or have invalid format.
+      Check variables:
+      - remnawave_nginx_https_port (default 443)
+      - remnawave_backend_port (default 3000)
+      - acmesh_port (default 8443)
+    quiet: true
+
+- name: Validate ports are in valid range
+  assert:
+    that:
+      - remnawave_nginx_https_port | int >= 1
+      - remnawave_nginx_https_port | int <= 65535
+      - remnawave_backend_port | int >= 1
+      - remnawave_backend_port | int <= 65535
+      - acmesh_port | int >= 1
+      - acmesh_port | int <= 65535
+    fail_msg: "One or more ports are outside valid range (1-65535)"
+    quiet: true
+
+- name: Validate HTTPS port is included in allowed_ports
+  assert:
+    that:
+      - 443 in allowed_ports | map('int') | list
+    fail_msg: |
+      HTTPS port (443) is not included in firewall allowed_ports list.
+      Panel will not be accessible from outside.
+      Add 443 to allowed_ports in inventory/hosts.yml
+    quiet: true
+
+- name: Check panel ports uniqueness
+  set_fact:
+    panel_ports: 
+      - "{{ remnawave_nginx_https_port | int }}"
+      - "{{ remnawave_backend_port | int }}"
+      - "{{ acmesh_port | int }}"
+
+- name: Validate panel ports do not conflict
+  assert:
+    that:
+      - panel_ports | length == (panel_ports | unique | length)
+    fail_msg: |
+      Conflicting panel ports found!
+      HTTPS port: {{ remnawave_nginx_https_port }}
+      Backend port: {{ remnawave_backend_port }}
+      ACME port: {{ acmesh_port }}
+      
+      All ports must be unique.
+      Change configuration in roles/panel/defaults/main.yml
+    quiet: true
+
+- name: Validate backend port does not conflict with SSH
+  assert:
+    that:
+      - remnawave_backend_port | int != ansible_port | int
+    fail_msg: |
+      Backend port ({{ remnawave_backend_port }}) conflicts with SSH port ({{ ansible_port }})!
+      Change remnawave_backend_port in roles/panel/defaults/main.yml
+    quiet: true
+
+- name: Validate secret header settings
+  assert:
+    that:
+      - remnawave_secret_header_enabled is defined
+      - remnawave_secret_header_enabled is boolean
+    fail_msg: "Variable remnawave_secret_header_enabled is not defined or has invalid type"
+    quiet: true

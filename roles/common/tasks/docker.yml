@@ -1,0 +1,44 @@
+---
+- name: Check if Docker is installed
+  stat:
+    path: /usr/bin/docker
+  register: docker_check
+
+- name: Install dependencies
+  apt:
+    name:
+      - curl
+      - ca-certificates
+    state: present
+    update_cache: yes
+  when: not docker_check.stat.exists
+
+- name: Download installation script
+  get_url:
+    url: https://get.docker.com
+    dest: /tmp/get-docker.sh
+    mode: '0755'
+  when: not docker_check.stat.exists
+
+- name: Run installation script
+  shell: sh /tmp/get-docker.sh
+  args:
+    creates: /usr/bin/docker
+  when: not docker_check.stat.exists
+
+- name: Remove installation script
+  file:
+    path: /tmp/get-docker.sh
+    state: absent
+
+- name: Verify installation
+  stat:
+    path: /usr/bin/docker
+  register: docker_installed
+
+- name: Enable and start Docker
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+  when: docker_installed.stat.exists

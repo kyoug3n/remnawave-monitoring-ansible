@@ -1,0 +1,125 @@
+---
+- name: Set API request parameters for getting nodes
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/nodes"
+    api_method: "GET"
+
+- name: Get list of nodes from API
+  include_tasks: api_request.yml
+
+- name: Store nodes list response
+  set_fact:
+    nodes_list_response: "{{ api_response }}"
+
+- name: Find existing node profile by name
+  set_fact:
+    existing_node_profile: "{{ nodes_list_response.json.response | default([]) | selectattr('name', 'equalto', node_name) | list | first | default(none) }}"
+
+- name: Find existing node profile by address (if not found by name)
+  set_fact:
+    existing_node_profile: "{{ nodes_list_response.json.response | default([]) | selectattr('address', 'equalto', node_address) | list | first | default(none) }}"
+  when: existing_node_profile is none
+
+- name: Set node profile exists flag
+  set_fact:
+    node_profile_exists: "{{ existing_node_profile is not none }}"
+
+- name: Build node profile JSON
+  set_fact:
+    node_profile_payload: "{{ lookup('template', 'node_profile.json.j2') | from_json }}"
+
+- name: Set API request parameters for creating node profile
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/nodes"
+    api_method: "POST"
+    api_body: "{{ node_profile_payload | to_json }}"
+
+- name: Create node profile via API
+  include_tasks: api_request.yml
+  when: not node_profile_exists
+
+- name: Set API request parameters for updating node profile
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/nodes"
+    api_method: "PATCH"
+    api_body: "{{ node_profile_payload | combine({'uuid': existing_node_profile.uuid}) | to_json }}"
+  when: node_profile_exists
+
+- name: Update existing node profile via API
+  include_tasks: api_request.yml
+  when: node_profile_exists
+
+- name: Store node profile response
+  set_fact:
+    node_profile_response: "{{ api_response }}"
+
+- name: Extract node UUID from response
+  set_fact:
+    node_uuid: "{{ node_profile_response.json.response.uuid | default(node_profile_response.json.uuid) }}"
+  failed_when: node_uuid is not defined or node_uuid == ''
+  when: node_profile_response is defined
+
+- name: Extract node UUID from existing profile
+  set_fact:
+    node_uuid: "{{ existing_node_profile.uuid }}"
+  when: node_profile_exists and node_profile_response is not defined
+
+- name: Fail if node profile creation failed
+  fail:
+    msg: "Failed to create node profile: {{ node_profile_response.json | default('No response') }}"
+  when: node_uuid is not defined or node_uuid == ''
+
+- name: Set API request parameters for getting hosts
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/hosts"
+    api_method: "GET"
+
+- name: Get list of hosts from API
+  include_tasks: api_request.yml
+
+- name: Store hosts list response
+  set_fact:
+    hosts_list_response: "{{ api_response }}"
+
+- name: Find existing host record by address and inbound
+  set_fact:
+    existing_host_record: "{{ hosts_list_response.json.response | default([]) | selectattr('address', 'equalto', node_domain) | selectattr('inbound.configProfileInboundUuid', 'equalto', inbound_uuid) | list | first | default(none) }}"
+
+- name: Set host record exists flag
+  set_fact:
+    host_record_exists: "{{ existing_host_record is not none }}"
+
+- name: Build host record JSON structure
+  set_fact:
+    host_record_payload: "{{ lookup('template', 'host_record.json.j2') | from_json }}"
+
+- name: Set API request parameters for creating host record
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/hosts"
+    api_method: "POST"
+    api_body: "{{ host_record_payload | to_json }}"
+
+- name: Create host record via API
+  include_tasks: api_request.yml
+  when: not host_record_exists
+
+- name: Store host record response
+  set_fact:
+    host_record_response: "{{ api_response }}"
+  when: not host_record_exists
+
+- name: Extract host UUID from response
+  set_fact:
+    host_uuid: "{{ host_record_response.json.response.uuid | default(host_record_response.json.uuid) }}"
+  failed_when: host_uuid is not defined or host_uuid == ''
+  when: not host_record_exists
+
+- name: Extract host UUID from existing record
+  set_fact:
+    host_uuid: "{{ existing_host_record.uuid }}"
+  when: host_record_exists
+
+- name: Fail if host record creation failed
+  fail:
+    msg: "Failed to create host record: {{ host_record_response.json | default('No response') }}"
+  when: host_uuid is not defined or host_uuid == ''

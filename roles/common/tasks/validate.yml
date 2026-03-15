@@ -1,0 +1,70 @@
+---
+- name: Validate ssh variables
+  assert:
+    that:
+      - ansible_user is defined
+      - ansible_user | length > 0
+      - ansible_ssh_private_key_file is defined
+      - ansible_ssh_private_key_file | length > 0
+      - ansible_port is defined
+      - ansible_port is number
+      - ansible_port | int >= 1
+      - ansible_port | int <= 65535
+    fail_msg: |
+      SSH configuration error:
+      {% if not (ansible_user is defined and ansible_user | length > 0) %}
+      - ansible_user is not defined or empty
+      {% endif %}
+      {% if not (ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0) %}
+      - ansible_ssh_private_key_file is not defined or empty
+      {% endif %}
+      {% if not (ansible_port is defined and ansible_port is number) %}
+      - ansible_port is not defined or not a number
+      {% elif not (ansible_port | int >= 1 and ansible_port | int <= 65535) %}
+      - ansible_port {{ ansible_port }} is outside valid range (1-65535)
+      {% endif %}
+    quiet: true
+
+- name: Check if private key file exists
+  stat:
+    path: "{{ ansible_ssh_private_key_file }}"
+  register: ssh_key_check
+  delegate_to: localhost
+  become: no
+
+- name: Fail if private key doesn't exist
+  fail:
+    msg: |
+      SSH key not found: {{ ansible_ssh_private_key_file }}
+      Make sure the file exists and the path is correct.
+  when: not ssh_key_check.stat.exists
+
+- name: Validate allowed ports list
+  assert:
+    that:
+      - allowed_ports is defined
+      - allowed_ports | length > 0
+    fail_msg: "Variable allowed_ports is not defined or empty"
+    quiet: true
+
+- name: Check if ssh port is allowed
+  assert:
+    that:
+      - ansible_port | int in allowed_ports | map('int') | list
+    fail_msg: |
+      SSH port {{ ansible_port }} is not included in firewall allowed_ports list.
+      This will block SSH access after UFW configuration.
+      Add {{ ansible_port }} to allowed_ports in inventory/hosts.yml
+    quiet: true
+
+- name: Ensure no duplicate ports are found
+  assert:
+    that:
+      - allowed_ports | length == (allowed_ports | unique | length)
+    fail_msg: |
+      Duplicate ports found in allowed_ports!
+      Port list: {{ allowed_ports | map('int') | list }}
+      
+      Each port must be specified only once.
+      Check configuration in inventory/hosts.yml
+    quiet: true

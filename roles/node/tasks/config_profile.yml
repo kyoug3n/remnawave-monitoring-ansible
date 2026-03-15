@@ -1,0 +1,135 @@
+---
+- name: Set API request parameters to get config profiles
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/config-profiles"
+    api_method: "GET"
+
+- name: Get list of config profiles from API
+  include_tasks: api_request.yml
+
+- name: Store config profiles response
+  set_fact:
+    config_profiles_response: "{{ api_response }}"
+
+- name: Find Default-Profile in config profiles list
+  set_fact:
+    default_profile: "{{ config_profiles_response.json.response.configProfiles | default([]) | selectattr('name', 'equalto', 'Default-Profile') | list | first | default(none) }}"
+
+- name: Extract UUID of Default-Profile
+  set_fact:
+    default_profile_uuid: "{{ default_profile.uuid }}"
+  when: default_profile is not none
+
+- name: Set API request parameters to delete Default-Profile
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/config-profiles/{{ default_profile_uuid }}"
+    api_method: "DELETE"
+    api_status_codes: [200, 201, 204]
+  when: default_profile is not none
+
+- name: Delete Default-Profile if it exists
+  include_tasks: api_request.yml
+  when: default_profile is not none
+
+- name: Set API request parameters for X25519 generation
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/system/tools/x25519/generate"
+    api_method: "GET"
+
+- name: Generate X25519 keypair from API
+  include_tasks: api_request.yml
+
+- name: Store X25519 response
+  set_fact:
+    x25519_response: "{{ api_response }}"
+
+- name: Extract X25519 private key from response
+  set_fact:
+    x25519_private_key: "{{ x25519_response.json.response.keypairs[0].privateKey }}"
+  failed_when: x25519_private_key is not defined or x25519_private_key == ''
+
+- name: Extract X25519 public key from response
+  set_fact:
+    x25519_public_key: "{{ x25519_response.json.response.keypairs[0].publicKey }}"
+  failed_when: x25519_public_key is not defined or x25519_public_key == ''
+
+- name: Fail if X25519 key generation failed
+  fail:
+    msg: "Failed to generate X25519 keypair: {{ x25519_response.json | default('No response') }}"
+  when: x25519_private_key is not defined or x25519_public_key is not defined or x25519_private_key == '' or x25519_public_key == ''
+
+- name: Generate shortId using openssl
+  command:
+    cmd: openssl rand -hex 8
+  register: short_id_result
+  changed_when: false
+
+- name: Extract shortId from command output
+  set_fact:
+    reality_short_id: "{{ short_id_result.stdout | trim }}"
+
+- name: node_domain to profile name
+  set_fact:
+    config_profile_name: "{{ node_domain | replace('.', '_') }}"
+
+- name: Check if config profile already exists
+  set_fact:
+    existing_config_profile: "{{ config_profiles_response.json.response.configProfiles | default([]) | selectattr('name', 'equalto', config_profile_name) | list | first | default(none) }}"
+
+- name: Set config profile exists flag
+  set_fact:
+    config_profile_exists: "{{ existing_config_profile is not none }}"
+
+- name: Get current timestamp
+  set_fact:
+    current_timestamp: "{{ now(fmt='%s') }}"
+
+- name: Generate unique inbound tag
+  set_fact:
+    inbound_tag: "inbound-{{ node_domain | replace('.', '-') }}-{{ current_timestamp }}"
+
+- name: Build config profile JSON
+  set_fact:
+    config_profile_payload: "{{ lookup('template', 'config_profile.json.j2') | from_json }}"
+
+- name: Set API request parameters to create config profile
+  set_fact:
+    api_url: "https://{{ remnawave_panel_domain }}/api/config-profiles"
+    api_method: "POST"
+    api_body: "{{ config_profile_payload | to_json }}"
+
+- name: Create config profile via API
+  include_tasks: api_request.yml
+  when: not config_profile_exists
+
+- name: Store config profile response
+  set_fact:
+    config_profile_response: "{{ api_response }}"
+  when: not config_profile_exists
+
+- name: Extract config profile UUID from response
+  set_fact:
+    config_profile_uuid: "{{ config_profile_response.json.response.uuid | default(config_profile_response.json.uuid) }}"
+  failed_when: config_profile_uuid is not defined or config_profile_uuid == ''
+  when: not config_profile_exists
+
+- name: Extract config profile UUID from existing profile
+  set_fact:
+    config_profile_uuid: "{{ existing_config_profile.uuid }}"
+  when: config_profile_exists
+
+- name: Extract inbound UUID from response
+  set_fact:
+    inbound_uuid: "{{ config_profile_response.json.response.inbounds[0].uuid | default(config_profile_response.json.inbounds[0].uuid) }}"
+  failed_when: inbound_uuid is not defined or inbound_uuid == ''
+  when: not config_profile_exists
+
+- name: Extract inbound UUID from existing profile
+  set_fact:
+    inbound_uuid: "{{ existing_config_profile.inbounds[0].uuid }}"
+  when: config_profile_exists
+
+- name: Fail if config profile creation failed
+  fail:
+    msg: "Failed to create config profile: {{ config_profile_response.json | default('No response') }}"
+  when: config_profile_uuid is not defined or inbound_uuid is not defined or config_profile_uuid == '' or inbound_uuid == ''

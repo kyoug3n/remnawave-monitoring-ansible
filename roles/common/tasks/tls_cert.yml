@@ -1,0 +1,115 @@
+---
+- name: Create certificate directory
+  file:
+    path: "{{ tls_cert_path }}"
+    state: directory
+    mode: '0755'
+  when: tls_domain is defined
+
+- name: Check for existing certificates
+  stat:
+    path: "{{ tls_cert_path }}/fullchain.pem"
+  register: cert_exists
+  when: tls_domain is defined
+
+- name: Check DNS resolution for domain
+  shell: |
+    dig +short {{ tls_domain }} | head -n1
+  register: dns_resolution
+  changed_when: false
+  until: dns_resolution.stdout != ""
+  retries: 3
+  delay: 2
+  when: 
+    - tls_domain is defined
+    - not cert_exists.stat.exists
+
+- name: Set server IP from inventory
+  set_fact:
+    server_ip: "{{ ansible_host }}"
+  when: 
+    - tls_domain is defined
+    - not cert_exists.stat.exists
+
+- name: Validate DNS resolution
+  fail:
+    msg: |
+      DNS resolution for {{ tls_domain }} does not point to server IP.
+      Expected: {{ server_ip }}
+      Got: {{ dns_resolution.stdout }}
+      Make sure DNS records are configured correctly before obtaining certificate.
+  when:
+    - tls_domain is defined
+    - not cert_exists.stat.exists
+    - dns_resolution.stdout != server_ip
+
+- name: Check port 8443 availability
+  wait_for:
+    port: 8443
+    state: stopped
+    timeout: 5
+  ignore_errors: yes
+  register: port_check
+  when: 
+    - tls_domain is defined
+    - not cert_exists.stat.exists
+
+- name: Issue TLS certificate via acme.sh
+  shell: |
+    /root/.acme.sh/acme.sh --issue --standalone \
+      -d '{{ tls_domain }}' \
+      --key-file {{ tls_cert_path }}/privkey.key \
+      --fullchain-file {{ tls_cert_path }}/fullchain.pem \
+      --alpn --tlsport 8443 \
+      --pre-hook "ufw allow {{ acmesh_port }}/tcp" \
+      --post-hook "ufw delete allow {{ acmesh_port }}/tcp"
+  args:
+    creates: "{{ tls_cert_path }}/fullchain.pem"
+  when: 
+    - tls_domain is defined
+    - not cert_exists.stat.exists
+  register: cert_issue
+  failed_when: 
+    - cert_issue.rc != 0
+    - cert_issue.rc != 2
+    - "'Domains not changed' not in cert_issue.stdout"
+    - "'Skipping' not in cert_issue.stdout"
+
+- name: Install existing certificate from acme.sh storage
+  shell: |
+    /root/.acme.sh/acme.sh --install-cert -d '{{ tls_domain }}' \
+      --key-file {{ tls_cert_path }}/privkey.key \
+      --fullchain-file {{ tls_cert_path }}/fullchain.pem
+  when:
+    - tls_domain is defined
+    - cert_issue is defined
+    - cert_issue is not skipped
+    - cert_issue.rc | default(-1) == 2
+  register: cert_install
+
+- name: Display certificate information
+  debug:
+    msg:
+      - "TLS certificate issued for {{ tls_domain }}"
+      - "Certificate will auto-renew every 60 days"
+  when: 
+    - tls_domain is defined
+    - cert_issue is changed or (cert_install is defined and cert_install is changed)
+
+- name: Check certificate presence
+  stat:
+    path: "{{ tls_cert_path }}/fullchain.pem"
+  register: final_cert_check
+  when: tls_domain is defined
+
+- name: Fail if certificate was not issued
+  fail:
+    msg: |
+      Failed to issue TLS certificate.
+      Make sure that:
+      1. Domain {{ tls_domain }} points to this server
+      2. Port 8443 is open and not in use
+      3. DNS records are configured correctly
+  when: 
+    - tls_domain is defined
+    - not final_cert_check.stat.exists

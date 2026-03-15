@@ -1,0 +1,140 @@
+---
+- name: Validate required variables are defined
+  assert:
+    that:
+      - node_name is defined
+      - node_name | length > 0
+      - node_address is defined
+      - node_address | length > 0
+      - node_port is defined
+      - node_port is number
+      - node_domain is defined
+      - node_domain | length > 0
+      - remnawave_panel_domain is defined
+      - remnawave_panel_domain | length > 0
+      - panel_ip is defined
+      - panel_ip | length > 0
+    fail_msg: |
+      Required variables are missing. Make sure all of the following variables are defined:
+      - node_name (e.g., 'msk')
+      - node_address (e.g., '192.168.0.1')
+      - node_port (e.g., 2222)
+      - node_domain (e.g., 'node.example.com')
+      - remnawave_panel_domain (e.g., 'example.com')
+      - panel_ip (e.g., '192.168.1.1')
+    quiet: true
+
+- name: Validate that node_port is not a reserved port
+  assert:
+    that:
+      - node_port | int not in reserved_ports | map('int') | list
+    fail_msg: |
+      Invalid node_port: {{ node_port }}
+      node_port cannot be one of the following reserved ports:
+      - SSH port ({{ ansible_port | default(22) }}): Used for SSH access
+      - 80: HTTP port
+      - 443: HTTPS port
+      - {{ acmesh_port }}: ACME certificate validation port
+      - 61000: Reserved system port
+      
+      Please choose a different port (recommended range: 10000-60999, excluding reserved ports).
+    quiet: true
+
+- name: Validate node_domain != remnawave_panel_domain
+  assert:
+    that:
+      - node_domain != remnawave_panel_domain
+    fail_msg: |
+      Invalid configuration: node_domain and remnawave_panel_domain must be different.
+      Current values:
+      - node_domain: {{ node_domain }}
+      - remnawave_panel_domain: {{ remnawave_panel_domain }}
+      
+      Each node must have a unique domain different from the panel domain.
+      Please specify a different domain for the node.
+    quiet: true
+
+- name: Check node_port uniqueness among all nodes
+  set_fact:
+    all_node_ports: "{{ groups['nodes'] | map('extract', hostvars, 'node_port') | list }}"
+  when: "'nodes' in groups"
+
+- name: Validate node_port is unique
+  assert:
+    that:
+      - all_node_ports | length == (all_node_ports | unique | length)
+    fail_msg: |
+      Duplicate node_port found among nodes!
+      All node ports: {{ all_node_ports | map('int') | list }}
+      
+      Each node must have a unique port.
+      Check configuration in inventory/hosts.yml
+    quiet: true
+  when: "'nodes' in groups and all_node_ports is defined"
+
+- name: Check node_name uniqueness among all nodes
+  set_fact:
+    all_node_names: "{{ groups['nodes'] | map('extract', hostvars, 'node_name') | list }}"
+  when: "'nodes' in groups"
+
+- name: Validate node_name is unique
+  assert:
+    that:
+      - all_node_names | length == (all_node_names | unique | length)
+    fail_msg: |
+      Duplicate node_name found among nodes!
+      All node names: {{ all_node_names }}
+      
+      Each node must have a unique name.
+      Check configuration in inventory/hosts.yml
+    quiet: true
+  when: "'nodes' in groups and all_node_names is defined"
+
+- name: Check node_domain uniqueness among all nodes
+  set_fact:
+    all_node_domains: "{{ groups['nodes'] | map('extract', hostvars, 'node_domain') | list }}"
+  when: "'nodes' in groups"
+
+- name: Validate node_domain is unique among nodes
+  assert:
+    that:
+      - all_node_domains | length == (all_node_domains | unique | length)
+    fail_msg: |
+      Duplicate node_domain found among nodes!
+      All node domains: {{ all_node_domains }}
+      
+      Each node must have a unique domain.
+      Check configuration in inventory/hosts.yml
+    quiet: true
+  when: "'nodes' in groups and all_node_domains is defined"
+
+- name: Collect all node IPs
+  set_fact:
+    all_node_ips: "{{ groups['nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
+  when: "'nodes' in groups"
+
+- name: Validate node IPs are unique among nodes
+  assert:
+    that:
+      - all_node_ips | length == (all_node_ips | unique | length)
+    fail_msg: |
+      Duplicate ansible_host (IP) found among nodes!
+      All node IPs: {{ all_node_ips }}
+
+      Each node must have a unique IP address.
+      Check configuration in inventory/hosts.yml
+    quiet: true
+  when: "'nodes' in groups and all_node_ips is defined"
+
+- name: Validate node IP does not conflict with panel IP
+  assert:
+    that:
+      - ansible_host != panel_ip
+    fail_msg: |
+      Node IP conflicts with panel IP!
+      Node IP: {{ ansible_host }}
+      Panel IP: {{ panel_ip }}
+
+      The node and panel must be on different servers.
+      Check configuration in inventory/hosts.yml
+    quiet: true

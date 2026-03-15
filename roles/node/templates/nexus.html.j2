@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Game Panel | Login</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --error: #ef4444;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --input-bg: #0f172a;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .login-card {
+            background: var(--card);
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+            width: 380px;
+            border-top: 4px solid var(--primary);
+            position: relative;
+            transition: transform 0.1s;
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            letter-spacing: 2px;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .sub-text {
+            font-size: 0.7rem;
+            color: var(--muted);
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: var(--input-bg);
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            border: none;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            transition: background 0.2s, opacity 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #error-msg {
+            color: var(--error);
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: 1.25rem;
+            display: none;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .status-bar {
+            font-size: 0.7rem;
+            color: var(--muted);
+            text-align: center;
+            margin-top: 2.5rem;
+            border-top: 1px solid #334155;
+            padding-top: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .dot {
+            height: 8px;
+            width: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+        }
+
+        .version {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card" id="card">
+        <div class="logo-section">
+            <h2>Nexus Core</h2>
+            <div class="sub-text">Infrastructure Management Portal</div>
+        </div>
+
+        <div class="input-group">
+            <label>Management Node</label>
+            <select id="node">
+                <option value="auto">Auto-select (Optimized)</option>
+                <option value="us-east">US-East-01 (Legacy)</option>
+                <option value="eu-west">EU-West-04 (Primary)</option>
+                <option value="sg-01">SG-Singapore-01</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>Admin ID</label>
+            <input type="text" id="user" placeholder="Enter UID" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label>Access Token</label>
+            <input type="password" id="pass" placeholder="••••••••" autocomplete="off">
+        </div>
+
+        <button id="login-btn" onclick="attemptLogin()">AUTHENTICATE</button>
+
+        <div id="error-msg">Critical: Invalid credentials or unauthorized IP footprint detected.</div>
+        
+        <div class="status-bar">
+            <div><span class="dot"></span> System: <strong>Online</strong></div>
+            <div id="latency-display">Ping: <span id="latency-val">24ms</span></div>
+            <div class="version">v4.2.1-stable</div>
+        </div>
+    </div>
+
+    <script>
+        function attemptLogin() {
+            const btn = document.getElementById('login-btn');
+            const err = document.getElementById('error-msg');
+            const card = document.getElementById('card');
+            const latencyVal = document.getElementById('latency-val');
+
+            btn.disabled = true;
+            btn.innerText = "COMMUNICATING WITH NODE...";
+            err.style.display = "none";
+
+            const processingTime = Math.floor(Math.random() * (4200 - 1500 + 1)) + 1500;
+
+            setTimeout(() => {
+                const newPing = Math.floor(Math.random() * (68 - 12 + 1)) + 12;
+                latencyVal.innerText = newPing + "ms";
+
+                btn.disabled = false;
+                btn.innerText = "AUTHENTICATE";
+                err.style.display = "block";
+                
+                card.style.transform = "translateX(6px)";
+                setTimeout(() => card.style.transform = "translateX(-6px)", 50);
+                setTimeout(() => card.style.transform = "translateX(6px)", 100);
+                setTimeout(() => card.style.transform = "translateX(0)", 150);
+
+                console.warn("[AUTH_MODULE] Rejection from upstream node. Code: 0x0041FF");
+            }, processingTime);
+        }
+
+        window.onload = () => {
+            const initialPing = Math.floor(Math.random() * (35 - 15 + 1)) + 15;
+            document.getElementById('latency-val').innerText = initialPing + "ms";
+        };
+    </script>
+</body>
+</html>

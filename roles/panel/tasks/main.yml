@@ -1,0 +1,16 @@
+---
+- name: Run validation tasks
+  include_tasks: validate.yml
+  tags: ['validate']
+
+- name: Install Remnawave
+  include_tasks: install.yml
+  tags: ['remnawave']
+
+- name: Configure Nginx reverse proxy
+  include_tasks: nginx.yml
+  tags: ['nginx']
+
+- name: Register superadmin
+  include_tasks: register_admin.yml
+  tags: ['admin']

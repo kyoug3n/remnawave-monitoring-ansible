@@ -1,0 +1,18 @@
+{
+  "name": "{{ node_name }}",
+  "address": "{{ node_address }}",
+  "port": {{ node_port }},
+  "configProfile": {
+    "activeConfigProfileUuid": "{{ config_profile_uuid }}",
+    "activeInbounds": [
+      "{{ inbound_uuid }}"
+    ]
+  },
+  "isTrafficTrackingActive": false,
+  "trafficLimitBytes": 0,
+  "notifyPercent": 0,
+  "trafficResetDay": 31,
+  "excludedInbounds": [],
+  "countryCode": "XX",
+  "consumptionMultiplier": 1.0
+}

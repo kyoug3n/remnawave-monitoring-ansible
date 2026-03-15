@@ -1,0 +1,27 @@
+---
+- name: Create remnanode directory
+  file:
+    path: /opt/remnanode
+    state: directory
+    mode: '0755'
+
+- name: Generate docker-compose.yml for remnanode
+  template:
+    src: remnanode-docker-compose.yml.j2
+    dest: /opt/remnanode/docker-compose.yml
+    mode: '0644'
+
+- name: Deploy remnanode container
+  command:
+    cmd: docker compose up -d
+    chdir: /opt/remnanode
+  register: docker_compose_result
+  changed_when: "'Started' in docker_compose_result.stdout or 'Created' in docker_compose_result.stdout"
+
+- name: Wait for remnanode container to start
+  shell: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' remnanode"
+  register: container_status
+  until: container_status.stdout == "running"
+  retries: 10
+  delay: 3
+  changed_when: false

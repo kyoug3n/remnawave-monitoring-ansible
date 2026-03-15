@@ -1,0 +1,13 @@
+---
+remnawave_base_path: "/opt/remnawave"
+remnawave_nginx_path: "/opt/remnawave/nginx"
+remnawave_network_name: "remnawave-network"
+remnawave_secret_header_enabled: true
+remnawave_secret_header: ""  # can be set manually. will be auto-generated if empty
+acmesh_email: ""  # used by acme.sh (tls certs), optional. defaults to admin@example.com
+
+# ↓ do not change ↓
+remnawave_nginx_https_port: 443
+remnawave_backend_port: 3000 
+acmesh_port: 8443
+# ↑ do not change ↑

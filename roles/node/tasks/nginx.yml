@@ -1,0 +1,41 @@
+---
+- name: Create Nginx directory
+  file:
+    path: "{{ node_nginx_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy nexus.html for self-steal
+  template:
+    src: nexus.html.j2
+    dest: "{{ node_nginx_path }}/nexus.html"
+    mode: '0644'
+  register: nexus_html_changed
+
+- name: Copy nginx.conf
+  template:
+    src: nginx.conf.j2
+    dest: "{{ node_nginx_path }}/nginx.conf"
+    mode: '0644'
+  register: nginx_config_changed
+
+- name: Copy Nginx's docker-compose.yml
+  template:
+    src: nginx-docker-compose.yml.j2
+    dest: "{{ node_nginx_path }}/docker-compose.yml"
+    mode: '0644'
+  register: nginx_compose_changed
+
+- name: Restart Nginx
+  shell:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ node_nginx_path }}"
+  register: nginx_restart
+
+- name: Wait for Nginx to be ready
+  shell: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' remnanode-nginx"
+  register: nginx_status
+  until: nginx_status.stdout == "running"
+  retries: 20
+  delay: 2
+  changed_when: false

@@ -1,0 +1,10 @@
+---
+- name: Allow node_port only from panel_ip
+  community.general.ufw:
+    rule: allow
+    port: "{{ node_port }}"
+    proto: tcp
+    from_ip: "{{ panel_ip }}"
+    comment: "panel <-> node"
+  become: yes
+  notify: reload ufw
