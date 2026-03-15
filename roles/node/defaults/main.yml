@@ -3,6 +3,7 @@
 remnawave_base_path: /opt/remnawave
 node_nginx_path: /opt/remnanode/nginx
 nginx_socket_path: /dev/shm/remna-nginx.sock
+nginx_container_name: remnanode-nginx
 acmesh_port: 8443
 reserved_ports:
   - "{{ ansible_port | default(22) }}"

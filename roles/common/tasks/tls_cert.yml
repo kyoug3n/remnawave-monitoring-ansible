@@ -62,7 +62,8 @@
       --fullchain-file {{ tls_cert_path }}/fullchain.pem \
       --alpn --tlsport 8443 \
       --pre-hook "ufw allow {{ acmesh_port }}/tcp" \
-      --post-hook "ufw delete allow {{ acmesh_port }}/tcp"
+      --post-hook "ufw delete allow {{ acmesh_port }}/tcp" \
+      --reloadcmd "docker exec {{ nginx_container_name }} nginx -s reload"
   args:
     creates: "{{ tls_cert_path }}/fullchain.pem"
   when: 
@@ -79,7 +80,8 @@
   shell: |
     /root/.acme.sh/acme.sh --install-cert -d '{{ tls_domain }}' \
       --key-file {{ tls_cert_path }}/privkey.key \
-      --fullchain-file {{ tls_cert_path }}/fullchain.pem
+      --fullchain-file {{ tls_cert_path }}/fullchain.pem \
+      --reloadcmd "docker exec {{ nginx_container_name }} nginx -s reload"
   when:
     - tls_domain is defined
     - cert_issue is defined

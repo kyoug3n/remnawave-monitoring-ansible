@@ -33,7 +33,7 @@
   register: nginx_restart
 
 - name: Wait for Nginx to be ready
-  shell: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' remnanode-nginx"
+  shell: "docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' {{ nginx_container_name }}"
   register: nginx_status
   until: nginx_status.stdout == "running"
   retries: 20

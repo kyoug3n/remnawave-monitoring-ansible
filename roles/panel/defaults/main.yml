@@ -10,4 +10,5 @@ acmesh_email: ""  # used by acme.sh (tls certs), optional. defaults to admin@exa
 remnawave_nginx_https_port: 443
 remnawave_backend_port: 3000 
 acmesh_port: 8443
+nginx_container_name: remnawave-nginx
 # ↑ do not change ↑
