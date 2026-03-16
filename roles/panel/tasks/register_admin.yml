@@ -1,8 +1,14 @@
 ---
 - name: Generate superadmin username
   shell: tr -dc 'a-zA-Z' < /dev/urandom | fold -w 8 | head -n 1
-  register: superadmin_username
+  register: generated_username
   changed_when: false
+  when: panel_superadmin_username is not defined
+
+- name: Set superadmin username
+  set_fact:
+    superadmin_username: "{{ panel_superadmin_username if panel_superadmin_username is defined else generated_username.stdout }}"
+  no_log: true
 
 - name: Generate superadmin password
   shell: |
@@ -11,8 +17,15 @@
     lower=$(openssl rand -base64 10 | tr -dc 'a-z' | head -c 1)
     digit=$(openssl rand -base64 10 | tr -dc '0-9' | head -c 1)
     echo "${base}${upper}${lower}${digit}" | fold -w1 | shuf | tr -d '\n'; echo
-  register: superadmin_password
+  register: generated_password
   changed_when: false
+  no_log: true
+  when: panel_superadmin_password is not defined
+
+- name: Set superadmin password
+  set_fact:
+    superadmin_password: "{{ panel_superadmin_password if panel_superadmin_password is defined else generated_password.stdout }}"
+  no_log: true
 
 - name: Wait for Remnawave API to be ready
   uri:
@@ -48,8 +61,8 @@
     method: POST
     body_format: json
     body:
-      username: "{{ superadmin_username.stdout }}"
-      password: "{{ superadmin_password.stdout }}"
+      username: "{{ superadmin_username }}"
+      password: "{{ superadmin_password }}"
     headers:
       Content-Type: "application/json"
       X-Remnawave-Client-Type: "browser"
@@ -67,8 +80,8 @@
     method: POST
     body_format: json
     body:
-      username: "{{ superadmin_username.stdout }}"
-      password: "{{ superadmin_password.stdout }}"
+      username: "{{ superadmin_username }}"
+      password: "{{ superadmin_password }}"
     headers:
       Content-Type: "application/json"
       X-Remnawave-Client-Type: "browser"
@@ -97,17 +110,17 @@
       Remnawave superadmin credentials
       ========================================
       Panel URL: https://{{ remnawave_panel_domain }}
-      Login: {{ superadmin_username.stdout }}
-      Password: {{ superadmin_password.stdout }}
+      Login: {{ superadmin_username }}
+      Password: {{ superadmin_password }}
       ========================================
     dest: "{{ remnawave_base_path }}/admin_credentials.txt"
     mode: '0600'
-  when: registration_successful | default(false)
+  when: registration_successful | default(false) and panel_superadmin_password is not defined
 
 - name: Store admin credentials for summary
   set_fact:
-    panel_admin_username: "{{ superadmin_username.stdout }}"
-    panel_admin_password: "{{ superadmin_password.stdout }}"
+    panel_admin_username: "{{ superadmin_username }}"
+    panel_admin_password: "{{ superadmin_password }}"
     panel_registration_successful: "{{ registration_successful | default(false) }}"
   no_log: true
   when: registration_successful | default(false)

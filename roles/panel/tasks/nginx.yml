@@ -34,7 +34,7 @@
       ========================================
     dest: "{{ remnawave_base_path }}/secret_header.txt"
     mode: '0600'
-  when: remnawave_secret_header_enabled
+  when: remnawave_secret_header_enabled and panel_secret_header is not defined
 
 - name: Remove nexus.html if incorrectly created as a directory
   file:
