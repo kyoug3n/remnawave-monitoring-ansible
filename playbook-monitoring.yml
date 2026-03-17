@@ -1,8 +1,29 @@
 ---
+- name: Gather Remnawave metrics credentials
+  hosts: panel
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Read METRICS_USER from panel .env
+      shell: "grep '^METRICS_USER=' {{ remnawave_base_path }}/.env | cut -d'=' -f2"
+      register: panel_metrics_user
+      changed_when: false
+      no_log: true
+
+    - name: Read METRICS_PASS from panel .env
+      shell: "grep '^METRICS_PASS=' {{ remnawave_base_path }}/.env | cut -d'=' -f2"
+      register: panel_metrics_pass
+      changed_when: false
+      no_log: true
+
 - name: Configure monitoring server
   hosts: monitoring
   become: yes
   gather_facts: no
+
+  vars:
+    remnawave_metrics_user: "{{ hostvars[groups['panel'][0]]['panel_metrics_user'].stdout | default('admin') }}"
+    remnawave_metrics_pass: "{{ hostvars[groups['panel'][0]]['panel_metrics_pass'].stdout }}"
 
   pre_tasks:
     - name: Check server connection

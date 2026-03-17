@@ -131,6 +131,7 @@
     - { regexp: '^JWT_AUTH_SECRET=', line: "JWT_AUTH_SECRET={{ jwt_auth_secret }}" }
     - { regexp: '^JWT_API_TOKENS_SECRET=', line: "JWT_API_TOKENS_SECRET={{ jwt_api_tokens_secret }}" }
     - { regexp: '^METRICS_PASS=', line: "METRICS_PASS={{ metrics_pass }}" }
+    - { regexp: '^METRICS_USER=', line: "METRICS_USER={{ metrics_user | default('admin') }}" }
     - { regexp: '^WEBHOOK_SECRET_HEADER=', line: "WEBHOOK_SECRET_HEADER={{ webhook_secret }}" }
     - { regexp: '^POSTGRES_PASSWORD=', line: "POSTGRES_PASSWORD={{ postgres_password }}" }
     - { regexp: '^POSTGRES_USER=', line: "POSTGRES_USER=postgres" }
