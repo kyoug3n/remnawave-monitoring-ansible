@@ -1,0 +1,6 @@
+---
+- name: restart monitoring
+  shell:
+    cmd: docker compose down && docker compose up -d
+    chdir: "{{ monitoring_base_path }}"
+  listen: restart monitoring

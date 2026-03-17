@@ -1,0 +1,97 @@
+---
+- name: Create monitoring base directory
+  file:
+    path: "{{ monitoring_base_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Generate Grafana admin username
+  shell: tr -dc 'a-zA-Z' < /dev/urandom | fold -w 8 | head -n 1
+  register: generated_grafana_user
+  changed_when: false
+  when: grafana_admin_user is not defined
+
+- name: Set Grafana admin username
+  set_fact:
+    grafana_admin_user: "{{ grafana_admin_user if grafana_admin_user is defined else generated_grafana_user.stdout }}"
+    grafana_user_was_generated: "{{ grafana_admin_user is not defined }}"
+  no_log: true
+
+- name: Generate Grafana admin password
+  shell: |
+    base=$(openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | head -c 29)
+    upper=$(openssl rand -base64 10 | tr -dc 'A-Z' | head -c 1)
+    lower=$(openssl rand -base64 10 | tr -dc 'a-z' | head -c 1)
+    digit=$(openssl rand -base64 10 | tr -dc '0-9' | head -c 1)
+    echo "${base}${upper}${lower}${digit}" | fold -w1 | shuf | tr -d '\n'; echo
+  register: generated_grafana_password
+  changed_when: false
+  no_log: true
+  when: grafana_admin_password is not defined
+
+- name: Set Grafana admin password
+  set_fact:
+    grafana_admin_password: "{{ grafana_admin_password if grafana_admin_password is defined else generated_grafana_password.stdout }}"
+    grafana_password_was_generated: "{{ grafana_admin_password is not defined }}"
+  no_log: true
+
+- name: Save Grafana credentials
+  copy:
+    content: |
+      ========================================
+      Grafana credentials
+      ========================================
+      URL: http://{{ ansible_host }}:{{ grafana_port }}
+      Login: {{ grafana_admin_user }}
+      Password: {{ grafana_admin_password }}
+      ========================================
+    dest: "{{ monitoring_base_path }}/grafana_credentials.txt"
+    mode: '0600'
+  when: grafana_user_was_generated or grafana_password_was_generated
+
+- name: Deploy .env
+  template:
+    src: .env.j2
+    dest: "{{ monitoring_base_path }}/.env"
+    mode: '0600'
+  no_log: true
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ monitoring_base_path }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Deploy prometheus.yml
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ monitoring_base_path }}/prometheus.yml"
+    mode: '0644'
+
+- name: Start monitoring stack
+  shell:
+    cmd: docker compose up -d
+    chdir: "{{ monitoring_base_path }}"
+  register: monitoring_start
+
+- name: Wait for Prometheus
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ prometheus_port }}"
+    delay: 3
+    timeout: 60
+
+- name: Wait for Grafana
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ grafana_port }}"
+    delay: 3
+    timeout: 60
+
+- name: Display monitoring info
+  debug:
+    msg:
+      - "Monitoring stack started."
+      - "Prometheus: http://{{ ansible_host }}:{{ prometheus_port }}"
+      - "Grafana:    http://{{ ansible_host }}:{{ grafana_port }}"
+      - "Credentials saved in: {{ monitoring_base_path }}/grafana_credentials.txt"

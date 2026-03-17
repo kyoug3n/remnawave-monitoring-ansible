@@ -1,0 +1,6 @@
+---
+monitoring_base_path: "/opt/monitoring"
+monitoring_network_name: "monitoring-network"
+
+prometheus_port: 9090
+grafana_port: 3000

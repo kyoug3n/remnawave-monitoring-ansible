@@ -1,0 +1,51 @@
+---
+- name: Configure monitoring server
+  hosts: monitoring
+  become: yes
+  gather_facts: no
+
+  pre_tasks:
+    - name: Check server connection
+      ping:
+
+    - name: Get actual server IP address
+      shell: hostname -I | awk '{print $1}'
+      register: server_ip_actual
+      changed_when: false
+
+    - name: Display connection information
+      debug:
+        msg: "Connected to {{ inventory_hostname }} (IP: {{ server_ip_actual.stdout }})"
+
+    - name: Gather OS facts
+      setup:
+        gather_subset:
+          - '!all'
+          - '!min'
+          - distribution
+
+    - name: Check OS family
+      fail:
+        msg: "This playbook only supports Debian-based distributions. Detected: {{ ansible_facts['os_family'] }}"
+      when: ansible_facts['os_family'] != "Debian"
+
+  roles:
+    - role: common
+      tags: ['common']
+
+    - role: monitoring
+      tags: ['monitoring']
+
+  post_tasks:
+    - name: Read Grafana credentials
+      slurp:
+        path: "{{ monitoring_base_path | default('/opt/monitoring') }}/grafana_credentials.txt"
+      register: grafana_creds_file
+      failed_when: false
+
+    - name: Display Grafana credentials
+      debug:
+        msg: "{{ grafana_creds_file.content | b64decode }}"
+      when:
+        - grafana_creds_file is not failed
+        - grafana_creds_file.content is defined
