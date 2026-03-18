@@ -75,6 +75,7 @@
     - cert_issue.rc != 2
     - "'Domains not changed' not in cert_issue.stdout"
     - "'Skipping' not in cert_issue.stdout"
+    - "'Reload error' not in cert_issue.stderr"
 
 - name: Install existing certificate from acme.sh storage
   shell: |
