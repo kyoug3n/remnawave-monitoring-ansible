@@ -1,15 +1,13 @@
 ---
-# ↓ do not change ↓
-remnawave_secret_header_enabled: true
+remnawave_secret_header_enabled: true  # override in hosts.yml → panel.vars
+acmesh_email: ""  # override in hosts.yml → all.vars (optional, defaults to admin@example.com)
 
+# ↓ do not change ↓
 remnawave_base_path: "/opt/remnawave"
 remnawave_nginx_path: "{{ remnawave_base_path }}/nginx"
 remnawave_network_name: "remnawave-network"
 nginx_container_name: remnawave-nginx
-
 remnawave_nginx_https_port: 443
 remnawave_backend_port: 3000
 acmesh_port: 8443
-
-acmesh_email: ""
 # ↑ do not change ↑
