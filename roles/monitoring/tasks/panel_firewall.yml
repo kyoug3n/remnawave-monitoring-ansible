@@ -1,0 +1,9 @@
+---
+- name: Allow metrics port from monitoring server on panel
+  ufw:
+    rule: allow
+    port: "3001"
+    proto: tcp
+    src: "{{ monitoring_server_ip }}"
+    comment: "remna metrics <-> monitoring server"
+  delegate_to: "{{ groups['panel'][0] }}"
