@@ -5,10 +5,12 @@
   delegate_to: "{{ panel_ip }}"
   register: admin_creds_file
 
-- name: Fail if superadmin creds file does not exist
+- name: Fail if superadmin creds file does not exist and no vault creds supplied
   fail:
-    msg: "Admin credentials file /opt/remnawave/admin_credentials.txt does not exist on panel server {{ panel_ip }}"
-  when: not admin_creds_file.stat.exists
+    msg: "Admin credentials file /opt/remnawave/admin_credentials.txt does not exist on panel server {{ panel_ip }} and no vault credentials were supplied (panel_superadmin_username / panel_superadmin_password)"
+  when:
+    - not admin_creds_file.stat.exists
+    - panel_superadmin_username is not defined or panel_superadmin_password is not defined
 
 - name: Check for secret header
   stat:
@@ -20,33 +22,45 @@
   set_fact:
     panel_secret_header_enabled: "{{ hostvars[groups['panel'][0]]['remnawave_secret_header_enabled'] | default(true) }}"
 
-- name: Fail if secret header file does not exist when header auth is enabled
+- name: Fail if secret header file does not exist and no vault header supplied
   fail:
-    msg: "Secret header file /opt/remnawave/secret_header.txt does not exist on panel server {{ panel_ip }}, but header authentication is enabled"
-  when: 
+    msg: "Secret header file /opt/remnawave/secret_header.txt does not exist on panel server {{ panel_ip }}, but header authentication is enabled and no remnawave_secret_header was supplied"
+  when:
     - panel_secret_header_enabled | bool
     - not secret_header_file.stat.exists
+    - remnawave_secret_header is not defined
 
 - name: Read superadmin creds from panel server
   slurp:
     path: /opt/remnawave/admin_credentials.txt
   delegate_to: "{{ panel_ip }}"
   register: admin_creds_content
+  when: admin_creds_file.stat.exists
 
 - name: Parse superadmin creds
   set_fact:
     admin_credentials_raw: "{{ admin_creds_content.content | b64decode }}"
   no_log: true
+  when: admin_creds_file.stat.exists
 
-- name: Extract superadmin username
+- name: Extract superadmin username from file
   set_fact:
     superadmin_username: "{{ (admin_credentials_raw | regex_search('Login:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
   no_log: true
+  when: admin_creds_file.stat.exists
 
-- name: Extract superadmin password
+- name: Extract superadmin password from file
   set_fact:
     superadmin_password: "{{ (admin_credentials_raw | regex_search('Password:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
   no_log: true
+  when: admin_creds_file.stat.exists
+
+- name: Use vault-supplied superadmin credentials
+  set_fact:
+    superadmin_username: "{{ panel_superadmin_username }}"
+    superadmin_password: "{{ panel_superadmin_password }}"
+  no_log: true
+  when: not admin_creds_file.stat.exists
 
 - name: Fail if credentials not found
   fail:
@@ -58,7 +72,7 @@
     path: /opt/remnawave/secret_header.txt
   delegate_to: "{{ panel_ip }}"
   register: secret_header_content
-  when: 
+  when:
     - panel_secret_header_enabled | bool
     - secret_header_file.stat.exists
 
@@ -66,17 +80,26 @@
   set_fact:
     secret_header_raw: "{{ secret_header_content.content | b64decode }}"
   no_log: true
-  when: 
+  when:
     - panel_secret_header_enabled | bool
     - secret_header_file.stat.exists
 
-- name: Extract secret header value
+- name: Extract secret header value from file
   set_fact:
     panel_secret_header: "{{ (secret_header_raw | regex_search('X-Secret-Key:\\s*(.+)', '\\1') | default([None]))[0] | default('') | trim }}"
   no_log: true
-  when: 
+  when:
     - panel_secret_header_enabled | bool
     - secret_header_file.stat.exists
+
+- name: Use vault-supplied secret header
+  set_fact:
+    panel_secret_header: "{{ remnawave_secret_header }}"
+  no_log: true
+  when:
+    - panel_secret_header_enabled | bool
+    - not secret_header_file.stat.exists
+    - remnawave_secret_header is defined
 
 - name: Set empty secret header when disabled
   set_fact:

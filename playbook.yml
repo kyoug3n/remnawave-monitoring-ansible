@@ -5,6 +5,9 @@
 - name: Import nodes playbook
   import_playbook: playbook-nodes.yml
 
+- name: Import monitoring playbook
+  import_playbook: playbook-monitoring.yml
+
 - name: Final summary
   hosts: panel
   become: no

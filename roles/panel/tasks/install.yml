@@ -114,11 +114,11 @@
       register: secret_header_generated
       changed_when: false
       no_log: true
-      when: panel_secret_header is not defined and (not secret_header_file_exists.stat.exists or current_secret_header.stdout == "" or current_secret_header.stdout == "X-Secret-Key:")
+      when: panel_secret_header is not defined and remnawave_secret_header is not defined and (not secret_header_file_exists.stat.exists or current_secret_header.stdout == "" or current_secret_header.stdout == "X-Secret-Key:")
 
     - name: Set header
       set_fact:
-        remnawave_secret_header: "{{ panel_secret_header if panel_secret_header is defined else (current_secret_header.stdout if (secret_header_file_exists.stat.exists and current_secret_header.stdout != '' and current_secret_header.stdout != 'X-Secret-Key:') else secret_header_generated.stdout) }}"
+        remnawave_secret_header: "{{ panel_secret_header if panel_secret_header is defined else (remnawave_secret_header if remnawave_secret_header is defined else (current_secret_header.stdout if (secret_header_file_exists.stat.exists and current_secret_header.stdout != '' and current_secret_header.stdout != 'X-Secret-Key:') else secret_header_generated.stdout)) }}"
       no_log: true
   when: remnawave_secret_header_enabled
 
