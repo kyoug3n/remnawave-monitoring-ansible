@@ -4,24 +4,25 @@
     that:
       - ansible_user is defined
       - ansible_user | length > 0
-      - ansible_ssh_private_key_file is defined
-      - ansible_ssh_private_key_file | length > 0
       - ansible_port is defined
       - ansible_port is number
       - ansible_port | int >= 1
       - ansible_port | int <= 65535
+      - (ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0) or
+        (ansible_ssh_pass is defined and ansible_ssh_pass | length > 0)
     fail_msg: |
       SSH configuration error:
       {% if not (ansible_user is defined and ansible_user | length > 0) %}
       - ansible_user is not defined or empty
       {% endif %}
-      {% if not (ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0) %}
-      - ansible_ssh_private_key_file is not defined or empty
-      {% endif %}
       {% if not (ansible_port is defined and ansible_port is number) %}
       - ansible_port is not defined or not a number
       {% elif not (ansible_port | int >= 1 and ansible_port | int <= 65535) %}
       - ansible_port {{ ansible_port }} is outside valid range (1-65535)
+      {% endif %}
+      {% if not ((ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0) or
+                 (ansible_ssh_pass is defined and ansible_ssh_pass | length > 0)) %}
+      - neither ansible_ssh_private_key_file nor ansible_ssh_pass is defined
       {% endif %}
     quiet: true
 
@@ -31,13 +32,16 @@
   register: ssh_key_check
   delegate_to: localhost
   become: no
+  when: ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0
 
 - name: Fail if private key doesn't exist
   fail:
     msg: |
       SSH key not found: {{ ansible_ssh_private_key_file }}
       Make sure the file exists and the path is correct.
-  when: not ssh_key_check.stat.exists
+  when:
+    - ansible_ssh_private_key_file is defined and ansible_ssh_private_key_file | length > 0
+    - not ssh_key_check.stat.exists
 
 - name: Validate allowed ports list
   assert:
