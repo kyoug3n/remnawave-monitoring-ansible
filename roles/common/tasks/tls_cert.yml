@@ -4,13 +4,11 @@
     path: "{{ tls_cert_path }}"
     state: directory
     mode: '0755'
-  when: tls_domain is defined
 
 - name: Check for existing certificates
   stat:
     path: "{{ tls_cert_path }}/fullchain.pem"
   register: cert_exists
-  when: tls_domain is defined
 
 - name: Check DNS resolution for domain
   shell: |
@@ -20,16 +18,12 @@
   until: dns_resolution.stdout != ""
   retries: 3
   delay: 2
-  when: 
-    - tls_domain is defined
-    - not cert_exists.stat.exists
+  when: not cert_exists.stat.exists
 
 - name: Set server IP from inventory
   set_fact:
     server_ip: "{{ ansible_host }}"
-  when: 
-    - tls_domain is defined
-    - not cert_exists.stat.exists
+  when: not cert_exists.stat.exists
 
 - name: Validate DNS resolution
   fail:
@@ -39,7 +33,6 @@
       Got: {{ dns_resolution.stdout }}
       Make sure DNS records are configured correctly before obtaining certificate.
   when:
-    - tls_domain is defined
     - not cert_exists.stat.exists
     - dns_resolution.stdout != server_ip
 
@@ -50,9 +43,7 @@
     timeout: 5
   ignore_errors: yes
   register: port_check
-  when: 
-    - tls_domain is defined
-    - not cert_exists.stat.exists
+  when: not cert_exists.stat.exists
 
 - name: Issue TLS certificate via acme.sh
   shell: |
@@ -66,11 +57,9 @@
       --reloadcmd "docker exec {{ nginx_container_name }} nginx -s reload"
   args:
     creates: "{{ tls_cert_path }}/fullchain.pem"
-  when: 
-    - tls_domain is defined
-    - not cert_exists.stat.exists
+  when: not cert_exists.stat.exists
   register: cert_issue
-  failed_when: 
+  failed_when:
     - cert_issue.rc != 0
     - cert_issue.rc != 2
     - "'Domains not changed' not in cert_issue.stdout"
@@ -84,7 +73,6 @@
       --fullchain-file {{ tls_cert_path }}/fullchain.pem \
       --reloadcmd "docker exec {{ nginx_container_name }} nginx -s reload"
   when:
-    - tls_domain is defined
     - cert_issue is defined
     - cert_issue is not skipped
     - cert_issue.rc | default(-1) == 2
@@ -95,15 +83,12 @@
     msg:
       - "TLS certificate issued for {{ tls_domain }}"
       - "Certificate will auto-renew every 60 days"
-  when: 
-    - tls_domain is defined
-    - cert_issue is changed or (cert_install is defined and cert_install is changed)
+  when: cert_issue is changed or (cert_install is defined and cert_install is changed)
 
 - name: Check certificate presence
   stat:
     path: "{{ tls_cert_path }}/fullchain.pem"
   register: final_cert_check
-  when: tls_domain is defined
 
 - name: Fail if certificate was not issued
   fail:
@@ -113,6 +98,4 @@
       1. Domain {{ tls_domain }} points to this server
       2. Port 8443 is open and not in use
       3. DNS records are configured correctly
-  when: 
-    - tls_domain is defined
-    - not final_cert_check.stat.exists
+  when: not final_cert_check.stat.exists
