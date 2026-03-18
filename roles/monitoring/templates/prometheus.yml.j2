@@ -15,4 +15,4 @@ scrape_configs:
       username: "{{ remnawave_metrics_user }}"
       password: "{{ remnawave_metrics_pass }}"
     static_configs:
-      - targets: ['{{ panel_ip }}:3001']
+      - targets: ['{{ hostvars[groups["panel"][0]]["ansible_host"] }}:3001']

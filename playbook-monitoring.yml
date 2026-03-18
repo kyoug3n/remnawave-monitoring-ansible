@@ -5,13 +5,13 @@
   gather_facts: no
   tasks:
     - name: Read METRICS_USER from panel .env
-      shell: "grep '^METRICS_USER=' {{ remnawave_base_path }}/.env | cut -d'=' -f2"
+      shell: "grep '^METRICS_USER=' /opt/remnawave/.env | cut -d'=' -f2"
       register: panel_metrics_user
       changed_when: false
       no_log: true
 
     - name: Read METRICS_PASS from panel .env
-      shell: "grep '^METRICS_PASS=' {{ remnawave_base_path }}/.env | cut -d'=' -f2"
+      shell: "grep '^METRICS_PASS=' /opt/remnawave/.env | cut -d'=' -f2"
       register: panel_metrics_pass
       changed_when: false
       no_log: true

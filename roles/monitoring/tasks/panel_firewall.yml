@@ -1,9 +1,78 @@
 ---
-- name: Allow metrics port from monitoring server on panel
-  ufw:
-    rule: allow
-    port: "3001"
-    proto: tcp
-    src: "{{ monitoring_server_ip }}"
-    comment: "remna metrics <-> monitoring server"
+- name: Install ufw-docker on panel
+  block:
+    - name: Check if ufw-docker is installed
+      stat:
+        path: /usr/local/bin/ufw-docker
+      register: ufw_docker_bin
+
+    - name: Download ufw-docker
+      get_url:
+        url: https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker
+        dest: /usr/local/bin/ufw-docker
+        mode: '0755'
+      when: not ufw_docker_bin.stat.exists
+
+    - name: Check if ufw-docker rules are installed
+      shell: grep -q "BEGIN UFW AND DOCKER" /etc/ufw/after.rules
+      register: ufw_docker_rules
+      changed_when: false
+      failed_when: false
+
+    - name: Install ufw-docker rules
+      shell: ufw-docker install
+      when: ufw_docker_rules.rc != 0
+      register: ufw_docker_install
+
+    - name: Restart ufw to apply ufw-docker rules
+      systemd:
+        name: ufw
+        state: restarted
+      when: ufw_docker_install is changed
   delegate_to: "{{ groups['panel'][0] }}"
+
+  shell: |
+    sed -i 's|127\.0\.0\.1:3001:|0.0.0.0:3001:|' /opt/remnawave/docker-compose.yml
+  delegate_to: "{{ groups['panel'][0] }}"
+  register: metrics_port_exposed
+
+- name: Add fixed subnet to remnawave-network in docker-compose
+  blockinfile:
+    path: /opt/remnawave/docker-compose.yml
+    marker: "# {mark} ANSIBLE MANAGED - remnawave-network subnet"
+    insertafter: 'external: false'
+    block: |2
+        ipam:
+          config:
+            - subnet: 172.20.0.0/24
+  delegate_to: "{{ groups['panel'][0] }}"
+  register: subnet_added
+
+- name: Bring nginx down before recreating network
+  shell:
+    cmd: docker compose down
+    chdir: /opt/remnawave/nginx
+  delegate_to: "{{ groups['panel'][0] }}"
+  when: metrics_port_exposed is changed or subnet_added is changed
+
+- name: Restart remnawave to recreate network
+  shell:
+    cmd: docker compose down && docker compose up -d
+    chdir: /opt/remnawave
+  delegate_to: "{{ groups['panel'][0] }}"
+  when: metrics_port_exposed is changed or subnet_added is changed
+
+- name: Bring nginx back up
+  shell:
+    cmd: docker compose up -d
+    chdir: /opt/remnawave/nginx
+  delegate_to: "{{ groups['panel'][0] }}"
+  when: metrics_port_exposed is changed or subnet_added is changed
+
+- name: Allow metrics port from monitoring server to remnawave subnet
+  shell: >
+    ufw route allow proto tcp from {{ monitoring_server_ip }}
+    to 172.20.0.0/24 port 3001
+  delegate_to: "{{ groups['panel'][0] }}"
+  register: ufw_route_result
+  changed_when: "'already' not in ufw_route_result.stdout"
