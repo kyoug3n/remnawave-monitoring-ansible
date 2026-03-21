@@ -44,12 +44,18 @@
     return_content: yes
   register: create_user_response
 
+- name: Set user facts
+  set_fact:
+    created_user_uuid: "{{ create_user_response.json.response.uuid }}"
+    created_user_subscription_url: "{{ create_user_response.json.response.subscriptionUrl }}"
+
 - name: Display created user info
   debug:
     msg:
       - "User created: {{ create_user_response.json.response.username }}"
-      - "UUID: {{ create_user_response.json.response.uuid }}"
+      - "UUID: {{ created_user_uuid }}"
       - "Expires: {{ create_user_response.json.response.expireAt }}"
+      - "Subscription URL: {{ created_user_subscription_url }}"
 
 - name: Get list of squads
   uri:
@@ -72,7 +78,7 @@
     headers: "{{ user_headers }}"
     body_format: json
     body:
-      userUuids: ["{{ create_user_response.json.response.uuid }}"]
+      userUuids: ["{{ created_user_uuid }}"]
     validate_certs: yes
     status_code: [200, 201]
     return_content: yes
