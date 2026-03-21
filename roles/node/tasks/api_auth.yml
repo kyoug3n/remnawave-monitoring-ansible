@@ -148,17 +148,10 @@
     - name: Include API error handler
       include_tasks: api_error_handler.yml
 
-- name: Extract access token from response (try .response.accessToken first)
+- name: Extract access token from response
   set_fact:
-    access_token: "{{ auth_response.json.response.accessToken | default('') }}"
+    access_token: "{{ auth_response.json.response.accessToken }}"
   no_log: true
-  when: auth_response.json.response is defined and auth_response.json.response.accessToken is defined
-
-- name: Extract access token from response (fallback to .accessToken)
-  set_fact:
-    access_token: "{{ auth_response.json.accessToken | default('') }}"
-  no_log: true
-  when: access_token is not defined or access_token == ''
 
 - name: Fail if access token is empty
   fail:

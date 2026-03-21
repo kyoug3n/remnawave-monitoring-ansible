@@ -77,6 +77,9 @@
     - cert_issue is not skipped
     - cert_issue.rc | default(-1) == 2
   register: cert_install
+  failed_when:
+    - cert_install.rc != 0
+    - "'Reload error' not in cert_install.stderr"
 
 - name: Display certificate information
   debug:
