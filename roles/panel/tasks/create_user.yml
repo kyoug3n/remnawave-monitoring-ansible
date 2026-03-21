@@ -1,0 +1,80 @@
+---
+- name: Authenticate with Remnawave API
+  include_tasks: "{{ role_path }}/../node/tasks/api_auth.yml"
+
+- name: Generate random username
+  shell: cat /dev/urandom | tr -dc 'a-z0-9' | head -c 12
+  register: generated_username
+  changed_when: false
+  when: new_user_username is not defined
+
+- name: Set username
+  set_fact:
+    new_user_username: "{{ generated_username.stdout }}"
+  when: new_user_username is not defined
+
+- name: Set expireAt
+  set_fact:
+    new_user_expire_at: "{{ new_user_expire_at | default('2099-01-01T00:00:00.000Z') }}"
+
+- name: Build user creation headers
+  set_fact:
+    user_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer ' + access_token}) }}"
+
+- name: Add secret header to user creation headers
+  set_fact:
+    user_headers: "{{ user_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  when: panel_secret_header_enabled | bool
+
+- name: Create user via Remnawave API
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/users"
+    method: POST
+    headers: "{{ user_headers }}"
+    body_format: json
+    body:
+      username: "{{ new_user_username }}"
+      expireAt: "{{ new_user_expire_at }}"
+      status: "{{ new_user_status | default('ACTIVE') }}"
+      trafficLimitBytes: "{{ new_user_traffic_limit_bytes | default(0) }}"
+      trafficLimitStrategy: "{{ new_user_traffic_limit_strategy | default('NO_RESET') }}"
+      description: "{{ new_user_description | default('') }}"
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  register: create_user_response
+
+- name: Display created user info
+  debug:
+    msg:
+      - "User created: {{ create_user_response.json.response.username }}"
+      - "UUID: {{ create_user_response.json.response.uuid }}"
+      - "Expires: {{ create_user_response.json.response.expireAt }}"
+
+- name: Get list of squads
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/internal-squads"
+    method: GET
+    headers: "{{ user_headers }}"
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  register: squads_response
+
+- name: Extract squad UUIDs
+  set_fact:
+    squad_uuids: "{{ squads_response.json.response.internalSquads | default([]) | map(attribute='uuid') | list }}"
+
+- name: Add user to each squad
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/internal-squads/{{ item }}/bulk-actions/add-users"
+    method: POST
+    headers: "{{ user_headers }}"
+    body_format: json
+    body:
+      userUuids: ["{{ create_user_response.json.response.uuid }}"]
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  loop: "{{ squad_uuids }}"
+  when: squad_uuids | length > 0

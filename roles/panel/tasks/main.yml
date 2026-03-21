@@ -14,3 +14,7 @@
 - name: Register superadmin
   include_tasks: register_admin.yml
   tags: ['admin']
+
+- name: Create user
+  include_tasks: create_user.yml
+  tags: ['create_user']
