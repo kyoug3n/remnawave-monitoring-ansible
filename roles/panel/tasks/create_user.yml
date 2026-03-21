@@ -47,7 +47,6 @@
 - name: Set user facts
   set_fact:
     created_user_uuid: "{{ create_user_response.json.response.uuid }}"
-    created_user_subscription_url: "{{ create_user_response.json.response.subscriptionUrl }}"
 
 - name: Display created user info
   debug:
@@ -55,7 +54,6 @@
       - "User created: {{ create_user_response.json.response.username }}"
       - "UUID: {{ created_user_uuid }}"
       - "Expires: {{ create_user_response.json.response.expireAt }}"
-      - "Subscription URL: {{ created_user_subscription_url }}"
 
 - name: Get list of squads
   uri:
@@ -84,3 +82,22 @@
     return_content: yes
   loop: "{{ squad_uuids }}"
   when: squad_uuids | length > 0
+
+- name: Get connection keys for created user
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/subscriptions/connection-keys/{{ created_user_uuid }}"
+    method: GET
+    headers: "{{ user_headers }}"
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  register: connection_keys_response
+
+- name: Set connection keys fact
+  set_fact:
+    created_user_enabled_keys: "{{ connection_keys_response.json.response.enabledKeys }}"
+
+- name: Display connection keys
+  debug:
+    msg:
+      - "Enabled keys: {{ created_user_enabled_keys }}"
