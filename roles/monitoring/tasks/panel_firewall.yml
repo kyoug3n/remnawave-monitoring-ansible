@@ -31,22 +31,23 @@
       when: ufw_docker_install is changed
   delegate_to: "{{ groups['panel'][0] }}"
 
+- name: Expose metrics port in remnawave docker-compose
   shell: |
     sed -i 's|127\.0\.0\.1:3001:|0.0.0.0:3001:|' /opt/remnawave/docker-compose.yml
   delegate_to: "{{ groups['panel'][0] }}"
   register: metrics_port_exposed
 
 - name: Add fixed subnet to remnawave-network in docker-compose
-  blockinfile:
-    path: /opt/remnawave/docker-compose.yml
-    marker: "# {mark} ANSIBLE MANAGED - remnawave-network subnet"
-    insertafter: 'external: false'
-    block: |2
-        ipam:
-          config:
-            - subnet: 172.20.0.0/24
+  shell: |
+    if ! grep -q 'subnet: 172.20.0.0/24' /opt/remnawave/docker-compose.yml; then
+      sed -i '/    name: remnawave-network/a\    ipam:\n      config:\n        - subnet: 172.20.0.0/24' /opt/remnawave/docker-compose.yml
+      echo changed
+    else
+      echo ok
+    fi
   delegate_to: "{{ groups['panel'][0] }}"
   register: subnet_added
+  changed_when: "'changed' in subnet_added.stdout"
 
 - name: Bring nginx down before recreating network
   shell:
@@ -67,6 +68,12 @@
     cmd: docker compose up -d
     chdir: /opt/remnawave/nginx
   delegate_to: "{{ groups['panel'][0] }}"
+  when: metrics_port_exposed is changed or subnet_added is changed
+
+- name: Allow nginx HTTPS port via ufw-docker
+  shell: ufw-docker allow remnawave-nginx 443
+  delegate_to: "{{ groups['panel'][0] }}"
+  changed_when: false
   when: metrics_port_exposed is changed or subnet_added is changed
 
 - name: Allow metrics port from monitoring server to remnawave subnet

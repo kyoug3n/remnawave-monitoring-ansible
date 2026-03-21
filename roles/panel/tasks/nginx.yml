@@ -62,3 +62,13 @@
   retries: 20
   delay: 2
   changed_when: false
+
+- name: Check if ufw-docker is installed
+  stat:
+    path: /usr/local/bin/ufw-docker
+  register: nginx_ufw_docker_bin
+
+- name: Allow nginx HTTPS port via ufw-docker
+  shell: ufw-docker allow {{ nginx_container_name }} 443
+  changed_when: false
+  when: nginx_ufw_docker_bin.stat.exists
