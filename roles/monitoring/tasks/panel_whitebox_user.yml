@@ -1,0 +1,100 @@
+---
+- name: Authenticate with Remnawave API
+  include_tasks: "{{ role_path }}/../node/tasks/api_auth.yml"
+
+- name: Build user creation headers
+  set_fact:
+    user_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer ' + access_token}) }}"
+
+- name: Add secret header to user creation headers
+  set_fact:
+    user_headers: "{{ user_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  when: panel_secret_header_enabled | bool
+
+- name: Check if whitebox user already exists
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/users/by-username/WHITEBOX_USER"
+    method: GET
+    headers: "{{ user_headers }}"
+    validate_certs: yes
+    status_code: [200, 201, 404]
+    return_content: yes
+  register: existing_user_response
+
+- name: Create whitebox user if not exists
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/users"
+    method: POST
+    headers: "{{ user_headers }}"
+    body_format: json
+    body:
+      username: "WHITEBOX_USER"
+      expireAt: "2099-01-01T00:00:00.000Z"
+      status: "ACTIVE"
+      trafficLimitBytes: 0
+      trafficLimitStrategy: "NO_RESET"
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  register: create_user_response
+  when: existing_user_response.status == 404
+
+- name: Set user uuid from existing user
+  set_fact:
+    whitebox_user_uuid: "{{ existing_user_response.json.response.uuid }}"
+  when: existing_user_response.status != 404
+
+- name: Set user uuid from created user
+  set_fact:
+    whitebox_user_uuid: "{{ create_user_response.json.response.uuid }}"
+  when: existing_user_response.status == 404
+
+- name: Add user to each squad
+  block:
+    - name: Get list of squads
+      uri:
+        url: "https://{{ remnawave_panel_domain }}/api/internal-squads"
+        method: GET
+        headers: "{{ user_headers }}"
+        validate_certs: yes
+        status_code: [200, 201]
+        return_content: yes
+      register: squads_response
+
+    - name: Extract squad UUIDs
+      set_fact:
+        squad_uuids: "{{ squads_response.json.response.internalSquads | default([]) | map(attribute='uuid') | list }}"
+
+    - name: Add user to each squad
+      uri:
+        url: "https://{{ remnawave_panel_domain }}/api/internal-squads/{{ item }}/bulk-actions/add-users"
+        method: POST
+        headers: "{{ user_headers }}"
+        body_format: json
+        body:
+          userUuids: ["{{ whitebox_user_uuid }}"]
+        validate_certs: yes
+        status_code: [200, 201]
+        return_content: yes
+      loop: "{{ squad_uuids }}"
+      when: squad_uuids | length > 0
+  when: existing_user_response.status == 404
+
+- name: Get connection keys for user
+  uri:
+    url: "https://{{ remnawave_panel_domain }}/api/subscriptions/connection-keys/{{ whitebox_user_uuid }}"
+    method: GET
+    headers: "{{ user_headers }}"
+    validate_certs: yes
+    status_code: [200, 201]
+    return_content: yes
+  register: connection_keys_response
+
+- name: Set connection keys fact
+  set_fact:
+    created_user_enabled_keys: "{{ connection_keys_response.json.response.enabledKeys }}"
+
+- name: Display connection keys
+  debug:
+    msg:
+      - "Enabled keys: {{ created_user_enabled_keys }}"
