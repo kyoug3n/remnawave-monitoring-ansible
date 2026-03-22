@@ -8,9 +8,6 @@
     - name: Run common validation
       include_tasks: roles/common/tasks/validate.yml
 
-    - name: Run node validation
-      include_tasks: roles/node/tasks/validate.yml
-
 - name: Configure Remnawave nodes
   hosts: nodes
   become: yes
