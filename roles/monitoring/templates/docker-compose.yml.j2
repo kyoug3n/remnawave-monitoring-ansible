@@ -5,6 +5,7 @@ services:
     hostname: prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./whitebox-sd-config.yml:/etc/prometheus/whitebox-sd-config.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -13,6 +14,20 @@ services:
     restart: always
     ports:
       - '127.0.0.1:{{ prometheus_port }}:9090'
+    networks:
+      - {{ monitoring_network_name }}
+
+  whitebox:
+    image: rxyvea/whitebox:latest
+    container_name: whitebox
+    hostname: whitebox
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:{{ whitebox_port }}:9116'
+    command:
+      - '--config.file=/etc/whitebox/whitebox.yml'
+    volumes:
+      - ./whitebox.yml:/etc/whitebox/whitebox.yml:ro
     networks:
       - {{ monitoring_network_name }}
 

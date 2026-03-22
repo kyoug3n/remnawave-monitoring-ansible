@@ -68,6 +68,18 @@
     dest: "{{ monitoring_base_path }}/prometheus.yml"
     mode: '0644'
 
+- name: Deploy whitebox-sd-config.yml
+  template:
+    src: whitebox-sd-config.yml.j2
+    dest: "{{ monitoring_base_path }}/whitebox-sd-config.yml"
+    mode: '0644'
+
+- name: Deploy whitebox.yml
+  template:
+    src: whitebox.yml.j2
+    dest: "{{ monitoring_base_path }}/whitebox.yml"
+    mode: '0644'
+
 - name: Start monitoring stack
   shell:
     cmd: docker compose up -d
@@ -85,6 +97,13 @@
   wait_for:
     host: 127.0.0.1
     port: "{{ grafana_port }}"
+    delay: 3
+    timeout: 60
+
+- name: Wait for Whitebox
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ whitebox_port }}"
     delay: 3
     timeout: 60
 

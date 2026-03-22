@@ -1,6 +1,7 @@
 ---
 prometheus_port: 9090  # override in hosts.yml → monitoring.vars
 grafana_port: 3000  # override in hosts.yml → monitoring.vars
+whitebox_port: 9116  # override in hosts.yml → monitoring.vars
 
 # ↓ do not change ↓
 monitoring_base_path: "/opt/monitoring"

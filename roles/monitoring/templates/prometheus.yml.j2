@@ -16,3 +16,22 @@ scrape_configs:
       password: "{{ remnawave_metrics_pass }}"
     static_configs:
       - targets: ['{{ hostvars[groups["panel"][0]]["ansible_host"] }}:3001']
+
+  - job_name: 'whitebox'
+    metrics_path: /probe
+    scrape_interval: 60s
+    file_sd_configs:
+      - files: ['/etc/prometheus/whitebox-sd-config.yml']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [ctx]
+        target_label: __param_ctx
+      - source_labels: [client]
+        target_label: client
+      - source_labels: [protocol]
+        target_label: protocol
+      - source_labels: [__param_target]
+        target_label: target
+      - target_label: __address__
+        replacement: whitebox:9116
