@@ -17,6 +17,24 @@ scrape_configs:
     static_configs:
       - targets: ['{{ hostvars[groups["panel"][0]]["ansible_host"] }}:3001']
 
+  - job_name: 'blackbox-https'
+    metrics_path: /probe
+    scrape_interval: 30s
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+{% for host in groups['nodes'] %}
+        - https://{{ hostvars[host]['node_domain'] }}
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: target
+      - target_label: __address__
+        replacement: blackbox:9115
+
   - job_name: 'whitebox'
     metrics_path: /probe
     scrape_interval: 60s

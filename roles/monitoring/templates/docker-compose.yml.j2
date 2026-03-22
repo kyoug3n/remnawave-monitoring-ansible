@@ -17,6 +17,20 @@ services:
     networks:
       - {{ monitoring_network_name }}
 
+  blackbox:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox
+    hostname: blackbox
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:{{ blackbox_port }}:9115'
+    command:
+      - '--config.file=/etc/blackbox/blackbox.yml'
+    volumes:
+      - ./blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks:
+      - {{ monitoring_network_name }}
+
   whitebox:
     image: rxyvea/whitebox:latest
     container_name: whitebox
