@@ -1,4 +1,16 @@
 ---
+- name: Pre-execution validation
+  hosts: panel
+  gather_facts: no
+  connection: local
+  become: no
+  tasks:
+    - name: Run common validation
+      include_tasks: roles/common/tasks/validate.yml
+
+    - name: Run panel validation
+      include_tasks: roles/panel/tasks/validate.yml
+
 - name: Configure Remnawave server
   hosts: panel
   become: yes

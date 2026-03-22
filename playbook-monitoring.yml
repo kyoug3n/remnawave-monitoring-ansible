@@ -1,4 +1,13 @@
 ---
+- name: Pre-execution validation
+  hosts: monitoring
+  gather_facts: no
+  connection: local
+  become: no
+  tasks:
+    - name: Run common validation
+      include_tasks: roles/common/tasks/validate.yml
+
 - name: Gather Remnawave metrics credentials
   hosts: panel
   become: yes
