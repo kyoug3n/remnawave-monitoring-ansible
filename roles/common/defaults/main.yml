@@ -1,5 +1,5 @@
 ---
-# ↓ override in hosts.yml → all.vars ↓
+# ↓ override in hosts.yml → all.vars if needed ↓
 ssh_permit_root_login: "prohibit-password"
 ssh_password_authentication: "no"
 ssh_max_auth_tries: 3
@@ -10,4 +10,4 @@ fail2ban_maxretry: 3
 fail2ban_bantime: 86400
 
 auto_updates_enabled: yes
-# ↑ override in hosts.yml → all.vars ↑
+# ↑ override in hosts.yml → all.vars if needed ↑

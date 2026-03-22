@@ -1,6 +1,6 @@
 ---
-remnawave_secret_header_enabled: true  # override in hosts.yml → panel.vars
-acmesh_email: ""  # override in hosts.yml → all.vars (optional, defaults to admin@example.com)
+remnawave_secret_header_enabled: true  # override in hosts.yml → panel.vars if needed
+acmesh_email: ""  # override in hosts.yml → all.vars if needed (optional, defaults to admin@example.com)
 
 # ↓ do not change ↓
 remnawave_base_path: "/opt/remnawave"
