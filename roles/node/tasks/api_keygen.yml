@@ -1,0 +1,40 @@
+---
+- name: Build key generation headers (with access token)
+  set_fact:
+    keygen_headers: "{{ base_api_headers | combine({'Authorization': 'Bearer ' + access_token}) }}"
+  no_log: true
+
+- name: Add secret header to key generation headers
+  set_fact:
+    keygen_headers: "{{ keygen_headers | combine({'x-secret-key': panel_secret_header}) }}"
+  no_log: true
+  when: panel_secret_header_enabled | bool
+
+- name: Generate secret key for node
+  block:
+    - name: Send key generation request
+      uri:
+        url: "https://{{ remnawave_panel_domain }}/api/keygen"
+        method: GET
+        headers: "{{ keygen_headers }}"
+        validate_certs: yes
+        status_code: [200, 201]
+        return_content: yes
+      register: keygen_response
+
+  rescue:
+    - name: Handle key generation error
+      set_fact:
+        api_error_response: "{{ keygen_response }}"
+
+    - name: Include API error handler
+      include_tasks: api_error_handler.yml
+
+- name: Extract pubKey from response
+  set_fact:
+    node_pub_key: "{{ keygen_response.json.response.pubKey | default('') }}"
+
+- name: Fail if pubKey not extracted
+  fail:
+    msg: "Failed to extract pubKey from key generation response."
+  when: node_pub_key is not defined or node_pub_key == ''

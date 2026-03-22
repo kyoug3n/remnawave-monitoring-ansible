@@ -29,6 +29,8 @@
   hosts: panel
   become: yes
   gather_facts: no
+  vars:
+    panel_ip: "{{ ansible_host }}"
   tasks:
     - name: Create whitebox monitoring user
       include_role:

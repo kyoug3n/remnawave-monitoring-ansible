@@ -15,6 +15,10 @@
   include_tasks: api_auth.yml
   tags: ['api']
 
+- name: Include API key generation tasks
+  include_tasks: api_keygen.yml
+  tags: ['api']
+
 - name: Include config profile management tasks
   include_tasks: config_profile.yml
   tags: ['api']

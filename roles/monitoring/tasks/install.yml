@@ -74,6 +74,34 @@
     dest: "{{ monitoring_base_path }}/blackbox.yml"
     mode: '0644'
 
+- name: Create Grafana provisioning directories
+  file:
+    path: "{{ monitoring_base_path }}/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - provisioning/datasources
+    - provisioning/dashboards
+    - dashboards
+
+- name: Deploy Grafana datasource provisioning
+  template:
+    src: grafana-datasource.yml.j2
+    dest: "{{ monitoring_base_path }}/provisioning/datasources/prometheus.yml"
+    mode: '0644'
+
+- name: Deploy Grafana dashboard provisioning
+  template:
+    src: grafana-dashboards.yml.j2
+    dest: "{{ monitoring_base_path }}/provisioning/dashboards/default.yml"
+    mode: '0644'
+
+- name: Download hemera dashboard
+  get_url:
+    url: https://raw.githubusercontent.com/quyxishi/whitebox/refs/heads/main/examples/hemera-dashboard.json
+    dest: "{{ monitoring_base_path }}/dashboards/hemera-dashboard.json"
+    mode: '0644'
+
 - name: Deploy whitebox-sd-config.yml
   template:
     src: whitebox-sd-config.yml.j2
