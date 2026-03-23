@@ -8,14 +8,14 @@ scrape_configs:
       - targets: ['localhost:9090']
 
   - job_name: 'remnawave'
-    scheme: http
+    scheme: https
     metrics_path: /metrics
     scrape_interval: 30s
     basic_auth:
       username: "{{ remnawave_metrics_user }}"
       password: "{{ remnawave_metrics_pass }}"
     static_configs:
-      - targets: ['{{ hostvars[groups["panel"][0]]["ansible_host"] }}:3001']
+      - targets: ['{{ hostvars[groups["panel"][0]]["remnawave_panel_domain"] }}']
 
   - job_name: 'blackbox-https'
     metrics_path: /probe

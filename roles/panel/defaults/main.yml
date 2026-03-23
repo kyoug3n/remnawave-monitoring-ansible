@@ -9,5 +9,6 @@ remnawave_network_name: "remnawave-network"
 nginx_container_name: remnawave-nginx
 remnawave_nginx_https_port: 443
 remnawave_backend_port: 3000
+remnawave_metrics_port: 3001
 acmesh_port: 8443
 # ↑ do not change ↑
