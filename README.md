@@ -1,5 +1,7 @@
 # remnawave-monitoring-ansible
 
+<div align="center"><a href="README_RU.md">🇷🇺 Русский</a></div>
+
 Ansible playbooks for deploying and managing a [Remnawave](https://github.com/remnawave/panel) VPN panel, nodes, and monitoring stack.
 
 ## What it deploys
@@ -31,37 +33,15 @@ cd remnawave-monitoring-ansible
 
 Edit `inventory/hosts.yml` — all configurable values are annotated inline.
 
-**3. (Optional) Vault for sensitive values**
+**3. Run**
 
-By default, credentials are auto-generated and saved to the server. If you'd rather supply your own, create a vault file:
-
-```bash
-EDITOR=nano ansible-vault create vault.yml
-```
-
-```yaml
-panel_superadmin_username: "admin"
-panel_superadmin_password: "yourpassword"
-remnawave_secret_header: "yoursecretheader"
-grafana_admin_user: "admin"
-grafana_admin_password: "yourpassword"
-```
-
-Password requirements — the playbook will error if these aren't met:
-- `panel_superadmin_password`: min 24 chars, at least one uppercase, one lowercase, one number
-- `grafana_admin_password`: min 4 chars; alphanumeric only — special characters will break the Docker `.env` file
-
-Pass it at runtime with `--extra-vars "@vault.yml" --ask-vault-pass`.
-
-## Running
-
-**Deploy everything**
+For a detailed walkthrough, see [GUIDE.md](GUIDE.md).
 
 ```bash
 ansible-playbook playbook.yml
 ```
 
-**Deploy individually**
+Or individually:
 
 ```bash
 ansible-playbook playbook-panel.yml
@@ -73,8 +53,6 @@ Credentials are printed at the end of each run and saved on the respective serve
 - Panel admin: `/opt/remnawave/admin_credentials.txt`
 - Secret header: `/opt/remnawave/secret_header.txt`
 - Grafana: `/opt/monitoring/grafana_credentials.txt`
-
-If using a vault file, append `--extra-vars "@vault.yml" --ask-vault-pass` (or `--vault-password-file .vault_pass`) to any command.
 
 ## Adding a node
 
@@ -94,8 +72,6 @@ node_ams:
 ansible-playbook playbook-nodes.yml
 ```
 
-If using a vault file, append `--extra-vars "@vault.yml" --ask-vault-pass` (or `--vault-password-file .vault_pass`) to any playbook command.
-
 The node is automatically registered to the panel and added to all existing squads.
 
 ## Monitoring stack
@@ -107,41 +83,11 @@ The node is automatically registered to the panel and added to all existing squa
 | Whitebox   | 9116         | VPN connection probing             |
 | Blackbox   | 9115         | Node HTTPS availability probing    |
 
-All ports are bound to `127.0.0.1`. Use SSH tunneling or a reverse proxy to access them.
-
-Whitebox probes are automatically configured using a dedicated `WHITEBOX_USER` created on the panel during the monitoring playbook run.
-
-## Accessing Grafana
-
-Since all monitoring ports are bound to `127.0.0.1`, use an SSH tunnel to reach them from your machine:
+All ports are bound to `127.0.0.1`. Use an SSH tunnel to access them:
 
 ```bash
 ssh -L 3000:127.0.0.1:3000 root@192.168.2.1
 ```
-
-If using an SSH key:
-
-```bash
-ssh -L 3000:127.0.0.1:3000 -i /path/to/key root@192.168.2.1
-```
-
-Then open `http://localhost:3000`. Swap `3000` for `9090`, `9116`, or `9115` to reach the other services.
-
-## Re-running playbooks
-
-All playbooks are idempotent and safe to re-run. Existing credentials and configuration are preserved — only actual changes show up as `changed`.
-
-## Vault password file
-
-To avoid typing the vault password on every run, save it to a file and reference it directly:
-
-```bash
-echo "yourpassword" > .vault_pass
-chmod 600 .vault_pass
-ansible-playbook playbook.yml --vault-password-file .vault_pass --extra-vars "@vault.yml"
-```
-
-Make sure `.vault_pass` is in `.gitignore`.
 
 ## Security
 
