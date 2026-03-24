@@ -2,7 +2,7 @@
 
 <div align="center"><a href="README_RU.md">🇷🇺 Русский</a><br><br></div>
 
-Ansible playbooks for deploying and managing a [Remnawave](https://github.com/remnawave/panel) VPN panel, nodes, and monitoring stack.
+Ansible playbooks for deploying and managing a [Remnawave](https://github.com/remnawave/panel) proxy management panel, nodes, and monitoring stack.
 
 ## What it deploys
 

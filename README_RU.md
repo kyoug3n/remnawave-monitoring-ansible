@@ -2,7 +2,7 @@
 
 <div align="center"><a href="README.md">🇬🇧 English</a><br><br></div>
 
-Ansible-плейбуки для развёртывания и управления VPN-панелью [Remnawave](https://github.com/remnawave/panel), нодами и стеком мониторинга.
+Ansible-плейбуки для развёртывания и управления прокси-панелью [Remnawave](https://github.com/remnawave/panel), нодами и стеком мониторинга.
 
 Подробное руководство — в [GUIDE_RU.md](GUIDE_RU.md).
 

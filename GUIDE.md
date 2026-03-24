@@ -161,6 +161,36 @@ To access other services on the same server, tunnel their ports the same way:
 
 ---
 
+## 8. Adding a node
+
+1. Add a new entry under `nodes.hosts` in `inventory/hosts.yml`:
+
+```yaml
+node_ams:
+  ansible_host: "192.168.0.2"
+  node_name: "ams"
+  node_port: 3333
+  node_domain: "ams.example.com"
+```
+
+2. Create an A record pointing the new domain to the node's server IP.
+
+3. Run:
+
+```bash
+ansible-playbook playbook-nodes.yml
+```
+
+With vault:
+
+```bash
+ansible-playbook playbook-nodes.yml --vault-password-file .vault_pass --extra-vars "@vault.yml"
+```
+
+The node is automatically registered to the panel and added to all existing squads.
+
+---
+
 ## Troubleshooting
 
 ### SSH connection refused
@@ -172,7 +202,7 @@ To access other services on the same server, tunnel their ports the same way:
 ### TLS certificate fails to issue
 
 - Make sure the domain's A record is pointing to the correct server IP and has propagated
-- Port 80 must be open on the server — acme.sh uses it for the HTTP challenge
+- Port 8443 must not be in use by anything else — acme.sh opens and closes it automatically during the TLS-ALPN challenge
 - Check acme.sh logs on the server: `~/.acme.sh/acme.sh.log`
 
 ### API authentication fails
