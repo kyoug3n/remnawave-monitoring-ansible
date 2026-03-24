@@ -108,3 +108,7 @@ ssh -L 3000:127.0.0.1:3000 root@192.168.2.1
 - [Blackbox Exporter](https://github.com/prometheus/blackbox_exporter) — HTTPS availability probing
 - [ufw-docker](https://github.com/chaifeng/ufw-docker) — UFW + Docker integration
 - [acme.sh](https://github.com/acmesh-official/acme.sh) — TLS certificate management
+
+## License
+
+[MIT](LICENSE)
