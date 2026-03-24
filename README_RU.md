@@ -1,6 +1,6 @@
 # remnawave-monitoring-ansible
 
-<div align="center"><a href="README.md">🇬🇧 English</a></div>
+<div align="center"><a href="README.md">🇬🇧 English</a><br><br></div>
 
 Ansible-плейбуки для развёртывания и управления VPN-панелью [Remnawave](https://github.com/remnawave/panel), нодами и стеком мониторинга.
 
