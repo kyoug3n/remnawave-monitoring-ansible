@@ -7,4 +7,3 @@
     from_ip: "{{ panel_ip }}"
     comment: "panel <-> node"
   become: yes
-  notify: reload ufw
